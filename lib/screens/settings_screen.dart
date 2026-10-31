@@ -18,7 +18,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   static const _langs = ['Indonesian', 'English', 'Malay', 'Japanese', 'Korean', 'Chinese (Simplified)', 'Spanish', 'Portuguese'];
   static const _presets = {
     'OpenAI': ['https://api.openai.com/v1', 'gpt-4o-mini'],
-    'Gemini': ['https://generativelanguage.googleapis.com/v1beta/openai', 'gemini-2.0-flash'],
+    'Gemini': ['https://generativelanguage.googleapis.com/v1beta/openai', 'gemini-3.5-flash-lite'],
     'OpenRouter': ['https://openrouter.ai/api/v1', 'openai/gpt-4o-mini'],
     'Groq': ['https://api.groq.com/openai/v1', 'llama-3.3-70b-versatile'],
   };
@@ -72,7 +72,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           Text('Transparansi gamepad: ${(s.opacity * 100).round()}%'),
           Slider(value: s.opacity, min: 0.15, max: 1, divisions: 17, onChanged: s.setOpacity),
           const Divider(height: 32),
-          const Text('Terjemahan AI', style: TextStyle(fontWeight: FontWeight.w700)),
+          const Text('Terjemahan', style: TextStyle(fontWeight: FontWeight.w700)),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
             title: const Text('Terjemahkan otomatis saat game dibuka'),
