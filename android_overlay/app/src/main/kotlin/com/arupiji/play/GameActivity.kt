@@ -77,21 +77,8 @@ class GameActivity : Activity() {
     }
 
     private fun showFatal(e: Throwable) {
-        val msg = Log.getStackTraceString(e)
         Log.e("ArupijiGame", "Gagal membuka game", e)
-        val tv = android.widget.TextView(this).apply {
-            text = msg
-            textSize = 11f
-            setPadding(32, 24, 32, 24)
-            setTextIsSelectable(true)
-        }
-        val sv = android.widget.ScrollView(this).apply { addView(tv) }
-        AlertDialog.Builder(this)
-            .setTitle("Game gagal dibuka")
-            .setView(sv)
-            .setPositiveButton("Tutup") { _, _ -> finish() }
-            .setCancelable(false)
-            .show()
+        ErrorDialog.show(this, "Game gagal dibuka", Log.getStackTraceString(e)) { finish() }
     }
 
     private fun initGame() {
@@ -298,22 +285,28 @@ class GameActivity : Activity() {
 
     override fun onPause() {
         super.onPause()
-        web.onPause()
-        web.pauseTimers()
+        if (::web.isInitialized) {
+            web.onPause()
+            web.pauseTimers()
+        }
     }
 
     override fun onResume() {
         super.onResume()
-        web.onResume()
-        web.resumeTimers()
+        if (::web.isInitialized) {
+            web.onResume()
+            web.resumeTimers()
+        }
     }
 
     override fun onDestroy() {
         super.onDestroy()
         io.shutdown()
         try {
-            (web.parent as? ViewGroup)?.removeView(web)
-            web.destroy()
+            if (::web.isInitialized) {
+                (web.parent as? ViewGroup)?.removeView(web)
+                web.destroy()
+            }
         } catch (_: Throwable) {
         }
         // Proses :game dimatikan supaya game berikutnya mulai dengan WebView bersih
