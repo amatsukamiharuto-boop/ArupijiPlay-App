@@ -1,5 +1,5 @@
 name: arupiji_play
-description: Launcher game RPG Maker MV/MZ untuk Android.
+description: Launcher game RPG Maker untuk Android.
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -16,6 +16,16 @@ dependencies:
   url_launcher: ^6.3.0
   package_info_plus: ^8.0.0
   qr_flutter: ^4.1.0
+
+dev_dependencies:
+  flutter_launcher_icons: ^0.14.1
+
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: "assets/images/arupijiplay_icon.png"
+  adaptive_icon_background: "#14181F"
+  adaptive_icon_foreground: "assets/images/arupijiplay_icon_foreground.png"
 
 flutter:
   uses-material-design: true
