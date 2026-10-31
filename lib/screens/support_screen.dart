@@ -24,7 +24,7 @@ class SupportScreen extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         children: [
           const Text(
-            'ArupijiPlay gratis dan dikerjakan sendirian. Kalau app ini berguna buat kamu, '
+            'ArupijiPlay gratis dan mudah dipakai. Kalau app ini berguna buat kalian, '
             'dukungan sekecil apa pun sangat membantu buat lanjut update.',
             style: TextStyle(height: 1.4),
           ),
