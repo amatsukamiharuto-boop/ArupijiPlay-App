@@ -25,6 +25,7 @@ import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.FrameLayout
+import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import java.util.concurrent.Executors
@@ -46,6 +47,7 @@ class GameActivity : Activity() {
     private var lang = "Indonesian"
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        installCrashLogger()
         gameId = intent.getStringExtra("id") ?: "default"
         // Suffix ini harus diset sebelum WebView pertama dibuat. Efeknya localStorage
         // (save RPG Maker) terpisah per game. Hanya jalan di Android 9 ke atas.
@@ -56,7 +58,43 @@ class GameActivity : Activity() {
             }
         }
         super.onCreate(savedInstanceState)
+        try {
+            initGame()
+        } catch (e: Throwable) {
+            showFatal(e)
+        }
+    }
 
+    private fun installCrashLogger() {
+        val prev = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { t, e ->
+            try {
+                File(filesDir, "last_crash.txt").writeText(Log.getStackTraceString(e))
+            } catch (_: Throwable) {
+            }
+            prev?.uncaughtException(t, e)
+        }
+    }
+
+    private fun showFatal(e: Throwable) {
+        val msg = Log.getStackTraceString(e)
+        Log.e("ArupijiGame", "Gagal membuka game", e)
+        val tv = android.widget.TextView(this).apply {
+            text = msg
+            textSize = 11f
+            setPadding(32, 24, 32, 24)
+            setTextIsSelectable(true)
+        }
+        val sv = android.widget.ScrollView(this).apply { addView(tv) }
+        AlertDialog.Builder(this)
+            .setTitle("Game gagal dibuka")
+            .setView(sv)
+            .setPositiveButton("Tutup") { _, _ -> finish() }
+            .setCancelable(false)
+            .show()
+    }
+
+    private fun initGame() {
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         if (Build.VERSION.SDK_INT >= 28) {
             window.attributes = window.attributes.apply {
@@ -190,6 +228,27 @@ class GameActivity : Activity() {
                 val out = translator.translate(text)
                 val js = "window.__arupiji&&window.__arupiji.onResult($reqId," +
                     "${JSONObject.quote(out.text)},${JSONObject.quote(out.source)})"
+                runOnUiThread { if (!isDestroyed) web.evaluateJavascript(js, null) }
+            }
+        }
+
+        @JavascriptInterface
+        fun translateBatch(reqId: Int, json: String) {
+            io.execute {
+                val texts = JSONArray()
+                val sources = JSONArray()
+                try {
+                    val arr = JSONArray(json)
+                    val items = List(arr.length()) { arr.getString(it) }
+                    translator.translateBatch(items).forEach {
+                        texts.put(it.text)
+                        sources.put(it.source)
+                    }
+                } catch (e: Exception) {
+                    Log.w("Arupiji", "translateBatch: ${e.message}")
+                }
+                val js = "window.__arupiji&&window.__arupiji.onBatch($reqId," +
+                    "${JSONObject.quote(texts.toString())},${JSONObject.quote(sources.toString())})"
                 runOnUiThread { if (!isDestroyed) web.evaluateJavascript(js, null) }
             }
         }
