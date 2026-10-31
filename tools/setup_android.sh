@@ -8,7 +8,14 @@ if [ ! -d android ]; then
 fi
 
 APP=android/app
-GRADLE=$(ls "$APP/build.gradle.kts" "$APP/build.gradle" 2>/dev/null | head -n1)
+if [ -f "$APP/build.gradle.kts" ]; then
+  GRADLE="$APP/build.gradle.kts"
+elif [ -f "$APP/build.gradle" ]; then
+  GRADLE="$APP/build.gradle"
+else
+  echo "File build.gradle tidak ditemukan di $APP" >&2
+  exit 1
+fi
 echo "Patch gradle: $GRADLE"
 
 sed -i -E 's/minSdk(Version)?[ =]+flutter\.minSdkVersion/minSdk = 26/' "$GRADLE"
@@ -53,4 +60,7 @@ fi
 rm -rf test
 
 grep -n "minSdk\|namespace\|applicationId" "$GRADLE" || true
+if ! grep -q "minSdk = 26" "$GRADLE"; then
+  echo "PERINGATAN: minSdk belum terpasang 26, cek isi $GRADLE" >&2
+fi
 echo "Selesai."
