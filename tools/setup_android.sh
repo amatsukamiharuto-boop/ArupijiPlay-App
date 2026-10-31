@@ -8,17 +8,7 @@ if [ ! -d android ]; then
 fi
 
 APP=android/app
-
-# Perbaikan: ls tidak boleh gagal kalau salah satu file tidak ada
-if [ -f "$APP/build.gradle.kts" ]; then
-  GRADLE="$APP/build.gradle.kts"
-elif [ -f "$APP/build.gradle" ]; then
-  GRADLE="$APP/build.gradle"
-else
-  echo "Error: tidak menemukan build.gradle(.kts)" >&2
-  exit 1
-fi
-
+GRADLE=$(ls "$APP/build.gradle.kts" "$APP/build.gradle" 2>/dev/null | head -n1)
 echo "Patch gradle: $GRADLE"
 
 sed -i -E 's/minSdk(Version)?[ =]+flutter\.minSdkVersion/minSdk = 26/' "$GRADLE"
@@ -27,6 +17,39 @@ sed -i -E 's/applicationId[ =]+"[^"]*"/applicationId = "com.arupiji.play"/' "$GR
 
 rm -rf "$APP/src/main/kotlin" "$APP/src/main/java"
 cp -r android_overlay/app/src/main/. "$APP/src/main/"
+cp android_overlay/app/proguard-rules.pro "$APP/proguard-rules.pro"
+
+# Pastikan aturan keep dipakai walaupun R8 aktif
+if ! grep -q "arupiji-proguard" "$GRADLE"; then
+  case "$GRADLE" in
+    *.kts)
+      cat >> "$GRADLE" <<'KTS'
+
+// arupiji-proguard
+android {
+    buildTypes {
+        release {
+            proguardFiles("proguard-rules.pro")
+        }
+    }
+}
+KTS
+      ;;
+    *)
+      cat >> "$GRADLE" <<'GROOVY'
+
+// arupiji-proguard
+android {
+    buildTypes {
+        release {
+            proguardFiles 'proguard-rules.pro'
+        }
+    }
+}
+GROOVY
+      ;;
+  esac
+fi
 rm -rf test
 
 grep -n "minSdk\|namespace\|applicationId" "$GRADLE" || true
