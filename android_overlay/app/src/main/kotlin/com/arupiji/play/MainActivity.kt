@@ -1,5 +1,6 @@
 package com.arupiji.play
 
+import android.app.AlertDialog
 import android.content.Intent
 import android.os.Handler
 import android.os.Looper
@@ -38,6 +39,28 @@ class MainActivity : FlutterActivity() {
                     else -> result.notImplemented()
                 }
             }
+    }
+
+    // Kalau proses game sempat crash, tampilkan penyebabnya di sini
+    override fun onResume() {
+        super.onResume()
+        val f = File(filesDir, "last_crash.txt")
+        if (!f.exists()) return
+        val msg = try { f.readText() } catch (_: Throwable) { "" }
+        f.delete()
+        if (msg.isBlank()) return
+        val tv = android.widget.TextView(this).apply {
+            text = msg
+            textSize = 11f
+            setPadding(32, 24, 32, 24)
+            setTextIsSelectable(true)
+        }
+        val sv = android.widget.ScrollView(this).apply { addView(tv) }
+        AlertDialog.Builder(this)
+            .setTitle("Game berhenti karena error")
+            .setView(sv)
+            .setPositiveButton("Tutup", null)
+            .show()
     }
 
     private fun startPicker(result: MethodChannel.Result) {
