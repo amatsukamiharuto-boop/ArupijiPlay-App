@@ -8,7 +8,17 @@ if [ ! -d android ]; then
 fi
 
 APP=android/app
-GRADLE=$(ls "$APP/build.gradle.kts" "$APP/build.gradle" 2>/dev/null | head -n1)
+
+# Perbaikan: ls tidak boleh gagal kalau salah satu file tidak ada
+if [ -f "$APP/build.gradle.kts" ]; then
+  GRADLE="$APP/build.gradle.kts"
+elif [ -f "$APP/build.gradle" ]; then
+  GRADLE="$APP/build.gradle"
+else
+  echo "Error: tidak menemukan build.gradle(.kts)" >&2
+  exit 1
+fi
+
 echo "Patch gradle: $GRADLE"
 
 sed -i -E 's/minSdk(Version)?[ =]+flutter\.minSdkVersion/minSdk = 26/' "$GRADLE"
