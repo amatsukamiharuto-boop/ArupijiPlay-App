@@ -26,18 +26,26 @@ class AboutScreen extends StatelessWidget {
               Container(
                 width: 56,
                 height: 56,
-                decoration: BoxDecoration(color: primary.withAlpha(40), borderRadius: BorderRadius.circular(14)),
+                decoration: BoxDecoration(
+                  color: primary.withAlpha(40),
+                  borderRadius: BorderRadius.circular(14),
+                ),
                 child: Icon(Icons.sports_esports, color: primary, size: 30),
               ),
               const SizedBox(width: 14),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(AppInfo.appName, style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
+                  const Text(
+                    AppInfo.appName,
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+                  ),
                   FutureBuilder<PackageInfo>(
                     future: PackageInfo.fromPlatform(),
                     builder: (_, s) => Text(
-                      s.hasData ? 'Versi ${s.data!.version} (build ${s.data!.buildNumber})' : 'Versi ...',
+                      s.hasData
+                          ? 'Versi ${s.data!.version} (build ${s.data!.buildNumber})'
+                          : 'Versi ...',
                       style: const TextStyle(color: Colors.white60),
                     ),
                   ),
@@ -52,7 +60,10 @@ class AboutScreen extends StatelessWidget {
             style: TextStyle(height: 1.4),
           ),
           const SizedBox(height: 22),
-          const Text('Cara pakai', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+          const Text(
+            'Cara pakai',
+            style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+          ),
           const SizedBox(height: 8),
           for (var i = 0; i < _steps.length; i++)
             Padding(
@@ -60,32 +71,47 @@ class AboutScreen extends StatelessWidget {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  SizedBox(width: 24, child: Text('${i + 1}.', style: TextStyle(color: primary, fontWeight: FontWeight.w700))),
-                  Expanded(child: Text(_steps[i], style: const TextStyle(height: 1.35))),
+                  SizedBox(
+                    width: 24,
+                    child: Text(
+                      '${i + 1}.',
+                      style: TextStyle(
+                        color: primary,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: Text(
+                      _steps[i],
+                      style: const TextStyle(height: 1.35),
+                    ),
+                  ),
                 ],
               ),
             ),
           const SizedBox(height: 14),
-          const Text('Developer', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+          const Text(
+            'Developer',
+            style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+          ),
           const SizedBox(height: 6),
-          Text(AppInfo.developerName, style: const TextStyle(fontWeight: FontWeight.w600)),
+          Text(
+            AppInfo.developerName,
+            style: const TextStyle(fontWeight: FontWeight.w600),
+          ),
           const SizedBox(height: 2),
-          const Text(AppInfo.developerBio, style: TextStyle(height: 1.35)),
+          const Text(
+            AppInfo.appBio, // ← sudah diganti dari developerBio
+            style: TextStyle(height: 1.35),
+          ),
           const SizedBox(height: 10),
-          Wrap(
-            spacing: 8,
-            children: [
-              OutlinedButton.icon(
-                onPressed: () => launchUrl(Uri.parse(AppInfo.githubUrl), mode: LaunchMode.externalApplication),
-                icon: const Icon(Icons.code, size: 18),
-                label: const Text('GitHub'),
-              ),
-              OutlinedButton.icon(
-                onPressed: () => launchUrl(Uri.parse('mailto:${AppInfo.contactEmail}')),
-                icon: const Icon(Icons.mail_outline, size: 18),
-                label: const Text('Email'),
-              ),
-            ],
+          // Tombol GitHub dihapus karena githubUrl sengaja dihapus
+          OutlinedButton.icon(
+            onPressed: () =>
+                launchUrl(Uri.parse('mailto:${AppInfo.contactEmail}')),
+            icon: const Icon(Icons.mail_outline, size: 18),
+            label: const Text('Email'),
           ),
           const SizedBox(height: 22),
           const Text(
