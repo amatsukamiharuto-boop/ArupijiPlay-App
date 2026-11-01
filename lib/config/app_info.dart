@@ -17,7 +17,7 @@ class AppInfo {
       'Kalian bisa dukung kami lewat donasi sesuai dengan kemampuan kalian dibawah ini, dan kami tidak memaksa kalian untuk berdonasi, namun jika kalian tertarik untuk berdonasi silahkan berdonasi sesuai dengan kemampuan kalian';
 
   static const donations = <DonationLink>[
-    DonationLink('Trakteer', 'https://trakteer.id/username', 'Traktir kopi lewat Trakteer'),
+    DonationLink('Trakteer', 'https://trakteer.id/arupijiapp', 'Traktir kopi lewat Trakteer'),
     DonationLink('Saweria', 'https://saweria.co/username', 'Dukung lewat Saweria'),
     DonationLink('Ko-fi', 'https://ko-fi.com/username', 'Untuk dukungan dari luar negeri'),
   ];
