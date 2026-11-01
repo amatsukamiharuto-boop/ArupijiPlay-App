@@ -2,7 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import '../models/game.dart';
 
-enum GameAction { rename, delete }
+enum GameAction { studio, rename, delete }
 
 class GameCard extends StatelessWidget {
   const GameCard({
@@ -19,8 +19,10 @@ class GameCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final dark = Theme.of(context).brightness == Brightness.dark;
     return Material(
       color: scheme.surface,
+      elevation: dark ? 0 : 1.5,
       borderRadius: BorderRadius.circular(14),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -39,23 +41,30 @@ class GameCard extends StatelessWidget {
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
                       decoration: BoxDecoration(
-                        color: Colors.black.withAlpha(170),
+                        color: Colors.black.withAlpha(180),
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(game.engine,
-                          style: TextStyle(fontSize: 11, color: scheme.primary, fontWeight: FontWeight.w600)),
+                          style: const TextStyle(fontSize: 11, color: Color(0xFF8FD0F7), fontWeight: FontWeight.w600)),
                     ),
                   ),
                   Positioned(
-                    right: 0,
-                    top: 0,
-                    child: PopupMenuButton<GameAction>(
-                      icon: const Icon(Icons.more_vert, size: 20),
-                      onSelected: onAction,
-                      itemBuilder: (_) => const [
-                        PopupMenuItem(value: GameAction.rename, child: Text('Ubah judul')),
-                        PopupMenuItem(value: GameAction.delete, child: Text('Hapus dari pustaka')),
-                      ],
+                    right: 2,
+                    top: 2,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.black.withAlpha(110),
+                        shape: BoxShape.circle,
+                      ),
+                      child: PopupMenuButton<GameAction>(
+                        icon: const Icon(Icons.more_vert, size: 20, color: Colors.white),
+                        onSelected: onAction,
+                        itemBuilder: (_) => const [
+                          PopupMenuItem(value: GameAction.studio, child: Text('Terjemahan offline')),
+                          PopupMenuItem(value: GameAction.rename, child: Text('Ubah judul')),
+                          PopupMenuItem(value: GameAction.delete, child: Text('Hapus dari pustaka')),
+                        ],
+                      ),
                     ),
                   ),
                 ],
