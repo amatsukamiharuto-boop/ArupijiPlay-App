@@ -20,6 +20,15 @@ class SettingsStore extends ChangeNotifier {
   bool get gamepad => _p.getBool('gamepad') ?? true;
   double get opacity => _p.getDouble('opacity') ?? 0.55;
 
+  /// system, light, atau dark
+  String get themeMode => _p.getString('themeMode') ?? 'system';
+  bool get debug => _p.getBool('debug') ?? false;
+
+  /// latin, japanese, chinese, korean (bahasa tulisan di dalam gambar)
+  String get ocrScript => _p.getString('ocrScript') ?? 'latin';
+  int get wrapPlain => _p.getInt('wrapPlain') ?? 46;
+  int get wrapFace => _p.getInt('wrapFace') ?? 38;
+
   Future<void> saveAi({
     required String baseUrl,
     required String apiKey,
@@ -50,6 +59,27 @@ class SettingsStore extends ChangeNotifier {
 
   Future<void> setOpacity(double v) async {
     await _p.setDouble('opacity', v);
+    notifyListeners();
+  }
+
+  Future<void> setThemeMode(String v) async {
+    await _p.setString('themeMode', v);
+    notifyListeners();
+  }
+
+  Future<void> setDebug(bool v) async {
+    await _p.setBool('debug', v);
+    notifyListeners();
+  }
+
+  Future<void> setOcrScript(String v) async {
+    await _p.setString('ocrScript', v);
+    notifyListeners();
+  }
+
+  Future<void> setWrap(int plain, int face) async {
+    await _p.setInt('wrapPlain', plain);
+    await _p.setInt('wrapFace', face);
     notifyListeners();
   }
 }
