@@ -7,9 +7,11 @@ import '../config/app_info.dart';
 class SupportScreen extends StatelessWidget {
   const SupportScreen({super.key});
 
+  static const _qrisAsset = 'assets/images/qris.png';
+
   Future<bool> _qrisExists() async {
     try {
-      await rootBundle.load(AppInfo.qrisAsset);
+      await rootBundle.load(_qrisAsset);
       return true;
     } catch (_) {
       return false;
@@ -23,11 +25,7 @@ class SupportScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          const Text(
-            'ArupijiPlay gratis dan mudah dipakai. Kalau app ini berguna buat kalian, '
-            'dukungan sekecil apa pun sangat membantu buat lanjut update.',
-            style: TextStyle(height: 1.4),
-          ),
+          const Text(AppInfo.dukungkami, style: TextStyle(height: 1.45)),
           const SizedBox(height: 16),
           for (final d in AppInfo.donations)
             Card(
@@ -67,7 +65,7 @@ class SupportScreen extends StatelessWidget {
                       const SizedBox(height: 12),
                       ClipRRect(
                         borderRadius: BorderRadius.circular(10),
-                        child: Image.asset(AppInfo.qrisAsset, width: 240),
+                        child: Image.asset(_qrisAsset, width: 240),
                       ),
                     ],
                   ),
