@@ -6,6 +6,7 @@ import '../models/game.dart';
 import '../services/library_store.dart';
 import '../services/settings_store.dart';
 import '../widgets/game_card.dart';
+import 'studio_screen.dart';
 
 class LibraryScreen extends StatelessWidget {
   const LibraryScreen({super.key});
@@ -70,6 +71,10 @@ class LibraryScreen extends StatelessWidget {
 
   Future<void> _onAction(BuildContext context, Game g, GameAction a) async {
     final lib = context.read<LibraryStore>();
+    if (a == GameAction.studio) {
+      await Navigator.of(context).push(MaterialPageRoute(builder: (_) => StudioScreen(game: g)));
+      return;
+    }
     if (a == GameAction.rename) {
       final c = TextEditingController(text: g.title);
       final ok = await showDialog<bool>(
