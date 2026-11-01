@@ -1,6 +1,6 @@
 /*
  * ArupijiPlay - skrip yang disuntik otomatis ke halaman game.
- * Isinya: gamepad virtual, menu overlay, dan hook terjemahan untuk RPG Maker MV/MZ.
+ * Isinya: kontrol layar yang bisa diatur, menu overlay, log debug, dan terjemahan langsung (opsional).
  */
 (function () {
   'use strict';
@@ -8,12 +8,49 @@
   window.__arupijiLoaded = true;
 
   var N = window.ArupijiNative;
-  var prefs = { translate: false, gamepad: true, opacity: 0.55, hasKey: false, lang: 'Indonesian', title: '' };
+  var prefs = { translate: false, gamepad: true, opacity: 0.55, hasKey: false, lang: 'Indonesian', title: '', debug: false };
   try { prefs = JSON.parse(N.getPrefs()); } catch (e) {}
 
   function savePref(k, v) {
     prefs[k] = v;
     try { N.setPref(k, String(v)); } catch (e) {}
+  }
+
+  /* ---------- log error ---------- */
+
+  var jsErrors = [];
+  function nlog(level, msg) {
+    msg = String(msg);
+    try { N.log(level, msg); } catch (e) {}
+    if (level === 'E') {
+      jsErrors.unshift(msg);
+      if (jsErrors.length > 50) jsErrors.pop();
+      updateBadge();
+    }
+  }
+  window.addEventListener('error', function (e) {
+    var m = e.message
+      ? e.message + ' (' + String(e.filename || '').split('/').pop() + ':' + (e.lineno || 0) + ')'
+      : 'Gagal memuat: ' + ((e.target && (e.target.src || e.target.href)) || '?');
+    nlog('E', m);
+  }, true);
+  window.addEventListener('unhandledrejection', function (e) {
+    nlog('E', 'Promise: ' + ((e.reason && (e.reason.stack || e.reason.message)) || e.reason));
+  });
+  (function () {
+    var oe = console.error, ow = console.warn;
+    console.error = function () { nlog('E', Array.prototype.join.call(arguments, ' ')); oe.apply(console, arguments); };
+    console.warn = function () { nlog('W', Array.prototype.join.call(arguments, ' ')); ow.apply(console, arguments); };
+  })();
+
+  function hookLoadError() {
+    if (!window.Graphics || !Graphics.printLoadingError || Graphics.__arpLE) return;
+    Graphics.__arpLE = true;
+    var o = Graphics.printLoadingError;
+    Graphics.printLoadingError = function (url) {
+      nlog('E', 'Gagal memuat file game: ' + url);
+      return o.apply(this, arguments);
+    };
   }
 
   /* ---------- tampilan dasar ---------- */
@@ -34,37 +71,45 @@
     '#arp-menu-btn{position:absolute;top:calc(8px + env(safe-area-inset-top,0px));left:calc(8px + env(safe-area-inset-left,0px));',
     'width:40px;height:40px;border-radius:12px;background:rgba(20,24,32,.72);color:#8fd0f7;',
     'border:1px solid rgba(255,255,255,.2);font-size:20px;line-height:38px;text-align:center;touch-action:manipulation}',
+    '#arp-badge{position:absolute;top:-6px;right:-6px;min-width:18px;height:18px;border-radius:9px;background:#e53935;color:#fff;',
+    'font-size:11px;line-height:18px;text-align:center;display:none;padding:0 4px;font-weight:700}',
     '#arp-panel{position:absolute;top:calc(54px + env(safe-area-inset-top,0px));left:calc(8px + env(safe-area-inset-left,0px));',
-    'width:min(290px,72vw);max-height:calc(100% - 70px);overflow-y:auto;background:rgba(18,22,30,.96);',
+    'width:min(300px,74vw);max-height:calc(100% - 70px);overflow-y:auto;background:rgba(18,22,30,.96);',
     'border:1px solid rgba(255,255,255,.15);border-radius:14px;padding:8px;display:none;touch-action:pan-y}',
     '.arp-row{display:flex;justify-content:space-between;align-items:center;width:100%;margin:0 0 6px;padding:11px 12px;',
     'border:0;border-radius:10px;background:rgba(255,255,255,.08);color:#e8eef5;font-size:14px;text-align:left}',
     '.arp-row:active{background:rgba(255,255,255,.18)}',
     '.arp-tag{font-size:12px;color:#8fd0f7;font-weight:700}',
+    '.arp-tag.red{color:#ff6b6b}',
     '.arp-title{color:#8aa0b4;font-size:11px;margin:2px 4px 8px;letter-spacing:.4px}',
     '#arp-panel input[type=range]{width:100%;margin:2px 0 10px}',
     '#arp-toast{position:absolute;left:50%;bottom:calc(14px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);',
     'background:rgba(18,22,30,.92);color:#fff;padding:8px 14px;border-radius:20px;font-size:13px;opacity:0;transition:opacity .25s;max-width:70vw;text-align:center}',
-    '#arp-pad-left,#arp-pad-right{position:absolute;bottom:calc(18px + env(safe-area-inset-bottom,0px));transform:scale(var(--sc,1))}',
-    '#arp-pad-left{left:calc(20px + env(safe-area-inset-left,0px));width:150px;height:190px;transform-origin:left bottom}',
-    '#arp-pad-right{right:calc(20px + env(safe-area-inset-right,0px));width:240px;height:170px;transform-origin:right bottom}',
-    '#arp-dpad{position:absolute;left:0;bottom:0;width:150px;height:150px;border-radius:50%;',
-    'background:rgba(255,255,255,.1);border:2px solid rgba(255,255,255,.28);touch-action:none}',
-    '#arp-dpad i{position:absolute;color:rgba(255,255,255,.55);font-style:normal;font-size:20px}',
-    '#arp-thumb{position:absolute;left:50px;top:50px;width:50px;height:50px;border-radius:50%;background:rgba(143,208,247,.45);',
-    'border:2px solid rgba(255,255,255,.45)}',
-    '.arp-b{position:absolute;border-radius:50%;background:rgba(255,255,255,.12);border:2px solid rgba(255,255,255,.3);',
-    'color:#fff;font-weight:700;display:flex;align-items:center;justify-content:center;touch-action:none}',
-    '.arp-b.on{background:rgba(143,208,247,.5)}',
-    '.arp-pill{border-radius:10px}',
-    '#arp-modal{position:absolute;left:0;top:0;right:0;bottom:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center}',
-    '#arp-modal .box{width:min(560px,92vw);max-height:92%;overflow:auto;background:#161b24;border-radius:14px;padding:14px;color:#e8eef5;touch-action:pan-y}',
-    '#arp-modal label{display:block;font-size:12px;color:#8aa0b4;margin:8px 0 4px}',
-    '#arp-modal textarea,#arp-modal select{width:100%;background:#0e1218;color:#fff;border:1px solid #2c3644;border-radius:8px;padding:8px;font-size:14px}',
-    '#arp-modal textarea{min-height:70px;resize:vertical;font-family:inherit}',
-    '#arp-modal .acts{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}',
-    '#arp-modal button{padding:9px 16px;border-radius:8px;border:0;font-size:14px;background:#2a3442;color:#fff}',
-    '#arp-modal button.pri{background:#5bb8f0;color:#06222f;font-weight:700}'
+    '#arp-ctls{position:absolute;left:0;top:0;right:0;bottom:0;pointer-events:none}',
+    '.arp-ctl{position:absolute;display:flex;align-items:center;justify-content:center;border-radius:50%;',
+    'background:rgba(255,255,255,.14);border:2px solid rgba(255,255,255,.38);color:#fff;font-weight:700;touch-action:none}',
+    '.arp-ctl.on{background:rgba(143,208,247,.55)}',
+    '.arp-stick{background:rgba(255,255,255,.1)}',
+    '.arp-thumb{position:absolute;border-radius:50%;background:rgba(143,208,247,.5);border:2px solid rgba(255,255,255,.55)}',
+    '.arp-editing .arp-ctl{border-style:dashed}',
+    '.arp-ctl.sel{outline:3px solid #ffd54f}',
+    '#arp-editbar{position:absolute;left:50%;top:calc(8px + env(safe-area-inset-top,0px));transform:translateX(-50%);display:none;',
+    'align-items:center;gap:8px;flex-wrap:wrap;justify-content:center;background:rgba(18,22,30,.96);border:1px solid rgba(255,255,255,.2);',
+    'border-radius:12px;padding:8px 10px;color:#e8eef5;font-size:12px;max-width:80vw}',
+    '#arp-editbar button{padding:7px 12px;border-radius:8px;border:0;background:#2a3442;color:#fff;font-size:12px}',
+    '#arp-editbar button.pri{background:#5bb8f0;color:#06222f;font-weight:700}',
+    '#arp-editbar button.del{background:#c62828}',
+    '#arp-editbar input[type=range]{width:130px}',
+    '.arp-modal{position:absolute;left:0;top:0;right:0;bottom:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center}',
+    '.arp-modal .box{width:min(580px,92vw);max-height:92%;overflow:auto;background:#161b24;border-radius:14px;padding:14px;color:#e8eef5;touch-action:pan-y}',
+    '.arp-modal label{display:block;font-size:12px;color:#8aa0b4;margin:8px 0 4px}',
+    '.arp-modal textarea,.arp-modal select,.arp-modal input[type=text]{width:100%;background:#0e1218;color:#fff;border:1px solid #2c3644;border-radius:8px;padding:8px;font-size:14px}',
+    '.arp-modal textarea{min-height:70px;resize:vertical;font-family:inherit}',
+    '.arp-modal .acts{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}',
+    '.arp-modal button{padding:9px 16px;border-radius:8px;border:0;font-size:14px;background:#2a3442;color:#fff}',
+    '.arp-modal button.pri{background:#5bb8f0;color:#06222f;font-weight:700}',
+    '.arp-log{font-family:monospace;font-size:11px;line-height:1.45;white-space:pre-wrap;word-break:break-all;background:#fff;color:#37474f;border-radius:8px;padding:8px;max-height:55vh;overflow:auto;touch-action:pan-y}',
+    '.arp-log .e{color:#d50000;font-weight:700}.arp-log .w{color:#e65100}'
   ].join('');
   var st = document.createElement('style');
   st.textContent = css;
@@ -81,7 +126,7 @@
   var root = el('div', 'arp-root');
   document.body.appendChild(root);
 
-  // Supaya sentuhan di overlay tidak dianggap klik ke layar game
+  // Sentuhan di overlay tidak boleh dianggap klik ke layar game
   ['touchstart', 'touchmove', 'touchend', 'touchcancel', 'mousedown', 'mousemove', 'mouseup', 'click', 'wheel']
     .forEach(function (t) {
       root.addEventListener(t, function (e) { e.stopPropagation(); }, { passive: true });
@@ -89,13 +134,14 @@
 
   /* ---------- kirim tombol keyboard ke RPG Maker ---------- */
 
-  var KEYNAME = { 37: 'ArrowLeft', 38: 'ArrowUp', 39: 'ArrowRight', 40: 'ArrowDown', 90: 'z', 88: 'x', 27: 'Escape', 16: 'Shift', 33: 'PageUp', 34: 'PageDown' };
+  var KEYNAME = { 13: 'Enter', 37: 'ArrowLeft', 38: 'ArrowUp', 39: 'ArrowRight', 40: 'ArrowDown', 27: 'Escape', 16: 'Shift', 17: 'Control', 18: 'Alt', 32: ' ', 9: 'Tab', 8: 'Backspace', 33: 'PageUp', 34: 'PageDown' };
   var held = {};
 
   function fire(type, code) {
+    var key = KEYNAME[code] || (code >= 65 && code <= 90 ? String.fromCharCode(code + 32) : (code >= 48 && code <= 57 ? String.fromCharCode(code) : ''));
     var e;
     try {
-      e = new KeyboardEvent(type, { bubbles: true, cancelable: true, key: KEYNAME[code] || '', keyCode: code, which: code });
+      e = new KeyboardEvent(type, { bubbles: true, cancelable: true, key: key, keyCode: code, which: code });
     } catch (err) {
       e = document.createEvent('Event');
       e.initEvent(type, true, true);
@@ -108,114 +154,6 @@
   }
   function press(code) { if (!held[code]) { held[code] = true; fire('keydown', code); } }
   function release(code) { if (held[code]) { held[code] = false; fire('keyup', code); } }
-
-  /* ---------- gamepad ---------- */
-
-  var gamepad = el('div', 'arp-gamepad');
-  var left = el('div', 'arp-pad-left', 'arp-hit');
-  var right = el('div', 'arp-pad-right', 'arp-hit');
-  var dpad = el('div', 'arp-dpad', 'arp-hit',
-    '<i style="left:62px;top:6px">&#9650;</i><i style="left:62px;bottom:6px">&#9660;</i>' +
-    '<i style="left:8px;top:61px">&#9664;</i><i style="right:8px;top:61px">&#9654;</i>');
-  var thumb = el('div', 'arp-thumb');
-  dpad.appendChild(thumb);
-  left.appendChild(dpad);
-
-  function mkBtn(label, code, cls, style) {
-    var b = el('div', null, 'arp-b arp-hit ' + (cls || ''), label);
-    b.style.cssText = style;
-    bindBtn(b, code);
-    return b;
-  }
-  function bindBtn(node, code) {
-    var pid = null;
-    node.addEventListener('pointerdown', function (e) {
-      if (pid !== null) return;
-      pid = e.pointerId;
-      try { node.setPointerCapture(pid); } catch (x) {}
-      node.classList.add('on');
-      press(code);
-      e.preventDefault();
-    });
-    function end(e) {
-      if (e.pointerId !== pid) return;
-      pid = null;
-      node.classList.remove('on');
-      release(code);
-    }
-    node.addEventListener('pointerup', end);
-    node.addEventListener('pointercancel', end);
-    node.addEventListener('lostpointercapture', end);
-  }
-
-  left.appendChild(mkBtn('L', 33, 'arp-pill', 'left:0;top:0;width:60px;height:32px;font-size:14px'));
-  left.appendChild(mkBtn('R', 34, 'arp-pill', 'left:70px;top:0;width:60px;height:32px;font-size:14px'));
-  right.appendChild(mkBtn('A', 90, '', 'right:0;bottom:0;width:72px;height:72px;font-size:24px'));
-  right.appendChild(mkBtn('B', 88, '', 'right:84px;bottom:34px;width:72px;height:72px;font-size:24px'));
-  right.appendChild(mkBtn('Dash', 16, '', 'right:0;bottom:84px;width:54px;height:54px;font-size:11px'));
-  right.appendChild(mkBtn('Menu', 27, '', 'right:96px;bottom:114px;width:54px;height:54px;font-size:11px'));
-
-  function dirFrom(dx, dy, rad) {
-    var res = {}, dead = rad * 0.22, ax = Math.abs(dx), ay = Math.abs(dy);
-    if (ax < dead && ay < dead) return res;
-    var ratio = ax / (ay || 0.001);
-    if (ratio > 2) res.h = dx < 0 ? 37 : 39;
-    else if (ratio < 0.5) res.v = dy < 0 ? 38 : 40;
-    else { res.h = dx < 0 ? 37 : 39; res.v = dy < 0 ? 38 : 40; }
-    return res;
-  }
-  function applyDir(d) {
-    var want = {};
-    if (d.h) want[d.h] = 1;
-    if (d.v) want[d.v] = 1;
-    [37, 38, 39, 40].forEach(function (c) { if (want[c]) press(c); else release(c); });
-  }
-  (function () {
-    var pid = null;
-    function upd(e) {
-      var r = dpad.getBoundingClientRect();
-      var cx = r.left + r.width / 2, cy = r.top + r.height / 2;
-      var dx = e.clientX - cx, dy = e.clientY - cy, rad = r.width / 2;
-      applyDir(dirFrom(dx, dy, rad));
-      var m = Math.sqrt(dx * dx + dy * dy), k = m > rad * 0.5 ? (rad * 0.5) / m : 1;
-      var s = r.width / 150; // kompensasi skala
-      thumb.style.transform = 'translate(' + (dx * k / s) + 'px,' + (dy * k / s) + 'px)';
-    }
-    function end(e) {
-      if (e.pointerId !== pid) return;
-      pid = null;
-      applyDir({});
-      thumb.style.transform = 'translate(0,0)';
-    }
-    dpad.addEventListener('pointerdown', function (e) {
-      if (pid !== null) return;
-      pid = e.pointerId;
-      try { dpad.setPointerCapture(pid); } catch (x) {}
-      upd(e);
-      e.preventDefault();
-    });
-    dpad.addEventListener('pointermove', function (e) { if (e.pointerId === pid) upd(e); });
-    dpad.addEventListener('pointerup', end);
-    dpad.addEventListener('pointercancel', end);
-    dpad.addEventListener('lostpointercapture', end);
-  })();
-
-  gamepad.appendChild(left);
-  gamepad.appendChild(right);
-  root.appendChild(gamepad);
-
-  function layoutPad() {
-    var sc = Math.max(0.7, Math.min(1.3, window.innerHeight / 360));
-    root.style.setProperty('--sc', sc);
-  }
-  function applyPadPrefs() {
-    gamepad.style.display = prefs.gamepad ? 'block' : 'none';
-    gamepad.style.opacity = prefs.opacity;
-    if (!prefs.gamepad) applyDir({});
-  }
-  window.addEventListener('resize', layoutPad);
-  layoutPad();
-  applyPadPrefs();
 
   /* ---------- toast ---------- */
 
@@ -505,6 +443,7 @@
   var hookTimer = setInterval(function () {
     tries++;
     var a = hookMessages(), b = hookUI();
+    hookLoadError();
     if ((a && b) || tries > 120) {
       clearInterval(hookTimer);
       try {
@@ -517,44 +456,404 @@
     }
   }, 500);
 
+  /* ---------- kontrol layar (bisa diatur) ---------- */
+
+  var KEYS = [['Enter', 13], ['Esc', 27], ['Spasi', 32], ['Shift', 16], ['Ctrl', 17], ['Alt', 18], ['Tab', 9], ['Backspace', 8],
+    ['Panah Atas', 38], ['Panah Bawah', 40], ['Panah Kiri', 37], ['Panah Kanan', 39], ['PageUp', 33], ['PageDown', 34]];
+  var ki;
+  for (ki = 65; ki <= 90; ki++) KEYS.push([String.fromCharCode(ki), ki]);
+  for (ki = 0; ki <= 9; ki++) KEYS.push([String(ki), 48 + ki]);
+  for (ki = 1; ki <= 12; ki++) KEYS.push(['F' + ki, 111 + ki]);
+
+  var DEFAULT_LAYOUT = [
+    { id: 'stick', type: 'stick', x: 0.14, y: 0.70, s: 1 },
+    { id: 'e', type: 'key', label: 'E', code: 13, x: 0.91, y: 0.78, s: 1 },
+    { id: 'x', type: 'key', label: 'X', code: 88, x: 0.80, y: 0.86, s: 1 },
+    { id: 'shift', type: 'key', label: 'Shift', code: 16, x: 0.91, y: 0.54, s: 0.9 },
+    { id: 'i', type: 'action', action: 'inventory', label: 'I', x: 0.80, y: 0.62, s: 0.9 }
+  ];
+
+  function loadLayout() {
+    var raw = '';
+    try { raw = N.getControls(); } catch (e) {}
+    if (raw) {
+      try {
+        var l = JSON.parse(raw);
+        if (Array.isArray(l) && l.length) return l;
+      } catch (e) {}
+    }
+    return JSON.parse(JSON.stringify(DEFAULT_LAYOUT));
+  }
+  function saveLayout() { try { N.setControls(JSON.stringify(layout)); } catch (e) {} }
+
+  var layout = loadLayout();
+  var nodes = {};
+  var editing = false, selId = null;
+  var ctlLayer = el('div', 'arp-ctls');
+  root.appendChild(ctlLayer);
+
+  function findCtl(id) {
+    for (var i = 0; i < layout.length; i++) if (layout[i].id === id) return layout[i];
+    return null;
+  }
+  function baseSize() { return Math.max(42, Math.min(80, window.innerHeight / 360 * 60)); }
+
+  function place(c) {
+    var n = nodes[c.id];
+    if (!n) return;
+    var size = baseSize() * c.s * (c.type === 'stick' ? 2.1 : 1);
+    n.style.width = size + 'px';
+    n.style.height = size + 'px';
+    n.style.left = (c.x * window.innerWidth - size / 2) + 'px';
+    n.style.top = (c.y * window.innerHeight - size / 2) + 'px';
+    n.style.fontSize = Math.max(11, size * (String(c.label || '').length > 2 ? 0.25 : 0.38)) + 'px';
+    if (n._thumb) {
+      var ts = size * 0.42;
+      n._thumb.style.width = ts + 'px';
+      n._thumb.style.height = ts + 'px';
+      n._thumb.style.left = ((size - ts) / 2 - 2) + 'px';
+      n._thumb.style.top = ((size - ts) / 2 - 2) + 'px';
+    }
+  }
+
+  function dirFrom(dx, dy, rad) {
+    var res = {}, dead = rad * 0.2, ax = Math.abs(dx), ay = Math.abs(dy);
+    if (ax < dead && ay < dead) return res;
+    var ratio = ax / (ay || 0.001);
+    if (ratio > 2) res.h = dx < 0 ? 37 : 39;
+    else if (ratio < 0.5) res.v = dy < 0 ? 38 : 40;
+    else { res.h = dx < 0 ? 37 : 39; res.v = dy < 0 ? 38 : 40; }
+    return res;
+  }
+  function applyDir(d) {
+    var want = {};
+    if (d.h) want[d.h] = 1;
+    if (d.v) want[d.v] = 1;
+    [37, 38, 39, 40].forEach(function (c) { if (want[c]) press(c); else release(c); });
+  }
+
+  function openInventory() {
+    try {
+      var sm = window.SceneManager, sc = sm && sm._scene;
+      if (!sc) { press(73); setTimeout(function () { release(73); }, 60); return; }
+      if (window.Scene_Item && sc instanceof Scene_Item) { sm.pop(); return; }
+      if (window.Scene_Map && window.Scene_Item && sc instanceof Scene_Map && !(window.$gameMessage && $gameMessage.isBusy())) {
+        if (window.SoundManager && SoundManager.playOk) SoundManager.playOk();
+        sm.push(Scene_Item);
+        return;
+      }
+      press(73);
+      setTimeout(function () { release(73); }, 60);
+    } catch (e) { nlog('E', 'Inventory: ' + e); }
+  }
+
+  function startDrag(e, c, n) {
+    select(c.id);
+    var sx = e.clientX, sy = e.clientY, ox = c.x * window.innerWidth, oy = c.y * window.innerHeight;
+    var pid = e.pointerId;
+    try { n.setPointerCapture(pid); } catch (x) {}
+    function mv(ev) {
+      if (ev.pointerId !== pid) return;
+      c.x = Math.min(0.98, Math.max(0.02, (ox + ev.clientX - sx) / window.innerWidth));
+      c.y = Math.min(0.98, Math.max(0.02, (oy + ev.clientY - sy) / window.innerHeight));
+      place(c);
+    }
+    function up(ev) {
+      if (ev.pointerId !== pid) return;
+      n.removeEventListener('pointermove', mv);
+      n.removeEventListener('pointerup', up);
+      n.removeEventListener('pointercancel', up);
+      saveLayout();
+    }
+    n.addEventListener('pointermove', mv);
+    n.addEventListener('pointerup', up);
+    n.addEventListener('pointercancel', up);
+    e.preventDefault();
+  }
+
+  function makeBtn(c) {
+    var n = el('div', null, 'arp-ctl arp-hit', c.label || '?');
+    var pid = null;
+    n.addEventListener('pointerdown', function (e) {
+      if (editing) { startDrag(e, c, n); return; }
+      if (pid !== null) return;
+      pid = e.pointerId;
+      try { n.setPointerCapture(pid); } catch (x) {}
+      n.classList.add('on');
+      if (c.type === 'action') { if (c.action === 'inventory') openInventory(); }
+      else press(c.code);
+      e.preventDefault();
+    });
+    function end(e) {
+      if (editing || e.pointerId !== pid) return;
+      pid = null;
+      n.classList.remove('on');
+      if (c.type === 'key') release(c.code);
+    }
+    n.addEventListener('pointerup', end);
+    n.addEventListener('pointercancel', end);
+    n.addEventListener('lostpointercapture', end);
+    return n;
+  }
+
+  function makeStick(c) {
+    var n = el('div', null, 'arp-ctl arp-stick arp-hit');
+    var th = el('div', null, 'arp-thumb');
+    n.appendChild(th);
+    n._thumb = th;
+    var pid = null;
+    function upd(e) {
+      var r = n.getBoundingClientRect();
+      var dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2), rad = r.width / 2;
+      applyDir(dirFrom(dx, dy, rad));
+      var m = Math.sqrt(dx * dx + dy * dy), k = m > rad * 0.55 ? (rad * 0.55) / m : 1;
+      th.style.transform = 'translate(' + (dx * k) + 'px,' + (dy * k) + 'px)';
+    }
+    n.addEventListener('pointerdown', function (e) {
+      if (editing) { startDrag(e, c, n); return; }
+      if (pid !== null) return;
+      pid = e.pointerId;
+      try { n.setPointerCapture(pid); } catch (x) {}
+      upd(e);
+      e.preventDefault();
+    });
+    n.addEventListener('pointermove', function (e) { if (!editing && e.pointerId === pid) upd(e); });
+    function end(e) {
+      if (editing || e.pointerId !== pid) return;
+      pid = null;
+      applyDir({});
+      th.style.transform = 'translate(0,0)';
+    }
+    n.addEventListener('pointerup', end);
+    n.addEventListener('pointercancel', end);
+    n.addEventListener('lostpointercapture', end);
+    return n;
+  }
+
+  function buildControls() {
+    ctlLayer.innerHTML = '';
+    nodes = {};
+    layout.forEach(function (c) {
+      var n = c.type === 'stick' ? makeStick(c) : makeBtn(c);
+      nodes[c.id] = n;
+      ctlLayer.appendChild(n);
+      place(c);
+    });
+    if (selId) select(selId);
+  }
+
+  function applyPadPrefs() {
+    ctlLayer.style.display = (prefs.gamepad || editing) ? 'block' : 'none';
+    ctlLayer.style.opacity = editing ? 1 : prefs.opacity;
+    if (!prefs.gamepad) applyDir({});
+  }
+  window.addEventListener('resize', function () { layout.forEach(place); });
+  buildControls();
+  applyPadPrefs();
+
+  /* ---------- mode atur tombol ---------- */
+
+  var editBar = el('div', 'arp-editbar', 'arp-hit');
+  var editHint = el('span', null, null, 'Geser tombol untuk memindah. Ukuran:');
+  var scaleIn = document.createElement('input');
+  scaleIn.type = 'range'; scaleIn.min = '0.5'; scaleIn.max = '2.5'; scaleIn.step = '0.05'; scaleIn.value = '1';
+  var bAdd = el('button', null, null, 'Tambah');
+  var bDel = el('button', null, 'del', 'Hapus');
+  var bReset = el('button', null, null, 'Reset');
+  var bDone = el('button', null, 'pri', 'Selesai');
+  [editHint, scaleIn, bAdd, bDel, bReset, bDone].forEach(function (n) { editBar.appendChild(n); });
+  root.appendChild(editBar);
+
+  function select(id) {
+    selId = id;
+    Object.keys(nodes).forEach(function (k) { nodes[k].classList.toggle('sel', k === id); });
+    var c = findCtl(id);
+    if (c) scaleIn.value = c.s;
+  }
+  scaleIn.addEventListener('input', function () {
+    var c = findCtl(selId);
+    if (!c) return;
+    c.s = parseFloat(scaleIn.value);
+    place(c);
+  });
+  scaleIn.addEventListener('change', saveLayout);
+
+  function enterEdit() {
+    editing = true;
+    applyDir({});
+    root.classList.add('arp-editing');
+    editBar.style.display = 'flex';
+    menuBtn.style.display = 'none';
+    panel.style.display = 'none';
+    applyPadPrefs();
+    if (layout.length) select(layout[0].id);
+    toast('Mode atur tombol: geser untuk memindah, atur ukuran lewat slider');
+  }
+  function exitEdit() {
+    editing = false;
+    root.classList.remove('arp-editing');
+    editBar.style.display = 'none';
+    menuBtn.style.display = 'block';
+    applyPadPrefs();
+    saveLayout();
+  }
+  bDone.addEventListener('click', exitEdit);
+  bDel.addEventListener('click', function () {
+    if (!selId) return;
+    layout = layout.filter(function (c) { return c.id !== selId; });
+    selId = null;
+    buildControls();
+    saveLayout();
+    if (layout.length) select(layout[0].id);
+  });
+  bReset.addEventListener('click', function () {
+    layout = JSON.parse(JSON.stringify(DEFAULT_LAYOUT));
+    selId = null;
+    buildControls();
+    saveLayout();
+    select(layout[0].id);
+  });
+
+  /* ---------- dialog tambah tombol ---------- */
+
+  function guardKeys(m) {
+    ['keydown', 'keyup', 'keypress'].forEach(function (t) {
+      m.addEventListener(t, function (e) { e.stopPropagation(); }, true);
+    });
+  }
+  function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+
+  var addModal = el('div', null, 'arp-modal arp-hit');
+  var addBox = el('div', null, 'box');
+  addModal.appendChild(addBox);
+  root.appendChild(addModal);
+  guardKeys(addModal);
+
+  bAdd.addEventListener('click', function () {
+    addBox.innerHTML = '';
+    var lbl = document.createElement('input');
+    lbl.type = 'text'; lbl.maxLength = 4; lbl.placeholder = 'Tulisan di tombol, mis. D';
+    var sel = document.createElement('select');
+    KEYS.forEach(function (k, i) {
+      var o = document.createElement('option');
+      o.value = String(i); o.textContent = k[0];
+      sel.appendChild(o);
+    });
+    var inv = document.createElement('option');
+    inv.value = 'inv'; inv.textContent = 'Item / Inventory (shortcut)';
+    sel.appendChild(inv);
+    sel.addEventListener('change', function () {
+      if (lbl.value) return;
+      lbl.value = sel.value === 'inv' ? 'I' : KEYS[parseInt(sel.value, 10)][0].slice(0, 4);
+    });
+    var acts = el('div', null, 'acts');
+    var cancel = el('button', null, null, 'Batal');
+    var save = el('button', null, 'pri', 'Tambah');
+    cancel.addEventListener('click', function () { addModal.style.display = 'none'; });
+    save.addEventListener('click', function () {
+      var c = { id: 'c' + Date.now(), x: 0.5, y: 0.5, s: 1, label: (lbl.value || '?').slice(0, 4) };
+      if (sel.value === 'inv') { c.type = 'action'; c.action = 'inventory'; }
+      else { c.type = 'key'; c.code = KEYS[parseInt(sel.value, 10)][1]; }
+      layout.push(c);
+      buildControls();
+      select(c.id);
+      saveLayout();
+      addModal.style.display = 'none';
+      toast('Tombol ditambahkan. Geser ke tempat yang kamu mau');
+    });
+    acts.appendChild(cancel);
+    acts.appendChild(save);
+    [el('label', null, null, 'Tulisan tombol'), lbl, el('label', null, null, 'Fungsi (tombol keyboard)'), sel, acts]
+      .forEach(function (n) { addBox.appendChild(n); });
+    addModal.style.display = 'flex';
+  });
+
+  /* ---------- log error ---------- */
+
+  var logModal = el('div', null, 'arp-modal arp-hit');
+  var logBox = el('div', null, 'box');
+  logModal.appendChild(logBox);
+  root.appendChild(logModal);
+
+  function openLog() {
+    var raw = '';
+    try { raw = N.readLog(); } catch (e) {}
+    logBox.innerHTML = '';
+    var head = el('div', null, null, '<b style="color:#ff6b6b">Log game</b> <span style="color:#8aa0b4;font-size:12px">merah = error, oranye = peringatan</span>');
+    var view = el('div', null, 'arp-log');
+    var lines = raw ? raw.split('\n') : [];
+    var html = lines.map(function (l) {
+      var p = l.split('|');
+      var lvl = p[1];
+      var msg = p.slice(3).join('|').replace(/\u0001/g, '\n');
+      var cls = lvl === 'E' ? 'e' : (lvl === 'W' ? 'w' : '');
+      return '<div class="' + cls + '">' + esc(p[0] + '  [' + p[2] + ']  ' + msg) + '</div>';
+    }).join('');
+    view.innerHTML = html || 'Belum ada log.';
+    var acts = el('div', null, 'acts');
+    var bCopy = el('button', null, null, 'Salin');
+    var bClear = el('button', null, null, 'Bersihkan');
+    var bClose = el('button', null, 'pri', 'Tutup');
+    bCopy.addEventListener('click', function () { try { N.copyText(raw); toast('Log disalin'); } catch (e) {} });
+    bClear.addEventListener('click', function () { try { N.clearLog(); } catch (e) {} jsErrors = []; updateBadge(); view.innerHTML = 'Belum ada log.'; });
+    bClose.addEventListener('click', function () { logModal.style.display = 'none'; });
+    [bCopy, bClear, bClose].forEach(function (b) { acts.appendChild(b); });
+    logBox.appendChild(head);
+    logBox.appendChild(view);
+    logBox.appendChild(acts);
+    logModal.style.display = 'flex';
+    view.scrollTop = view.scrollHeight;
+  }
+
   /* ---------- menu overlay ---------- */
 
   var menuBtn = el('div', 'arp-menu-btn', 'arp-hit', '&#9776;');
+  var badge = el('div', 'arp-badge');
+  menuBtn.appendChild(badge);
   var panel = el('div', 'arp-panel', 'arp-hit');
   root.appendChild(menuBtn);
   root.appendChild(panel);
 
-  function row(label, tag, fn) {
-    var b = el('button', null, 'arp-row', '<span>' + label + '</span>' + (tag ? '<span class="arp-tag">' + tag + '</span>' : ''));
+  function updateBadge() {
+    if (!badge) return;
+    badge.textContent = String(jsErrors.length);
+    badge.style.display = (prefs.debug && jsErrors.length) ? 'block' : 'none';
+  }
+  updateBadge();
+
+  function row(label, tag, fn, red) {
+    var b = el('button', null, 'arp-row', '<span>' + label + '</span>' + (tag ? '<span class="arp-tag' + (red ? ' red' : '') + '">' + tag + '</span>' : ''));
     b.addEventListener('click', fn);
     return b;
   }
 
   function renderPanel() {
     panel.innerHTML = '';
-    panel.appendChild(el('div', null, 'arp-title', (prefs.title || 'GAME').toUpperCase()));
+    panel.appendChild(el('div', null, 'arp-title', esc((prefs.title || 'GAME').toUpperCase())));
 
-    panel.appendChild(row('Terjemahan AI (' + prefs.lang + ')', prefs.translate ? 'ON' : 'OFF', function () {
+    panel.appendChild(row('Terjemahan langsung (' + esc(prefs.lang) + ')', prefs.translate ? 'ON' : 'OFF', function () {
       if (!prefs.translate && !prefs.hasKey) { toast('API key belum diisi di Pengaturan'); return; }
       savePref('translate', !prefs.translate);
       toast(prefs.translate ? 'Terjemahan aktif' : 'Terjemahan dimatikan');
       scheduleRefresh();
       renderPanel();
     }));
-    panel.appendChild(row('Gamepad virtual', prefs.gamepad ? 'ON' : 'OFF', function () {
+    panel.appendChild(row('Tombol di layar', prefs.gamepad ? 'ON' : 'OFF', function () {
       savePref('gamepad', !prefs.gamepad);
       applyPadPrefs();
       renderPanel();
     }));
+    panel.appendChild(row('Atur posisi dan ukuran tombol', '', enterEdit));
 
-    panel.appendChild(el('div', null, 'arp-title', 'TRANSPARANSI GAMEPAD'));
+    panel.appendChild(el('div', null, 'arp-title', 'TRANSPARANSI TOMBOL'));
     var sl = document.createElement('input');
     sl.type = 'range'; sl.min = '0.15'; sl.max = '1'; sl.step = '0.05'; sl.value = prefs.opacity;
     sl.addEventListener('input', function () { prefs.opacity = parseFloat(sl.value); applyPadPrefs(); });
     sl.addEventListener('change', function () { savePref('opacity', parseFloat(sl.value)); });
     panel.appendChild(sl);
 
-    panel.appendChild(row('Edit terjemahan', '', function () { panel.style.display = 'none'; openStudio(); }));
+    panel.appendChild(row('Edit terjemahan langsung', '', function () { panel.style.display = 'none'; openStudio(); }));
+    panel.appendChild(row('Log dan error', jsErrors.length ? jsErrors.length + ' error' : '', function () { panel.style.display = 'none'; openLog(); }, true));
     panel.appendChild(row('Keluar ke launcher', '', function () { N.exitGame(); }));
   }
 
@@ -566,7 +865,7 @@
 
   /* ---------- edit studio ---------- */
 
-  var modal = el('div', 'arp-modal', 'arp-hit');
+  var modal = el('div', 'arp-modal-old', 'arp-modal arp-hit');
   var box = el('div', null, 'box');
   modal.appendChild(box);
   root.appendChild(modal);
