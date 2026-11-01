@@ -25,9 +25,32 @@ class NativeBridge {
       'translate': s.autoTranslate,
       'gamepad': s.gamepad,
       'opacity': s.opacity,
+      'debug': s.debug,
     });
   }
 
   static Future<void> deleteGameFiles(String path) =>
       _ch.invokeMethod('deleteGame', {'path': path});
+
+  // ---- log debug ----
+
+  static Future<void> debugLog(String level, String tag, String msg) async {
+    try {
+      await _ch.invokeMethod('debugLog', {'level': level, 'tag': tag, 'msg': msg});
+    } catch (_) {}
+  }
+
+  static Future<String> debugRead() async {
+    try {
+      return (await _ch.invokeMethod<String>('debugRead')) ?? '';
+    } catch (_) {
+      return '';
+    }
+  }
+
+  static Future<void> debugClear() async {
+    try {
+      await _ch.invokeMethod('debugClear');
+    } catch (_) {}
+  }
 }
