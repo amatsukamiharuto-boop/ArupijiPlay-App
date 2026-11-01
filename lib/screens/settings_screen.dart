@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/settings_store.dart';
+import 'debug_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -18,7 +19,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   static const _langs = ['Indonesian', 'English', 'Malay', 'Japanese', 'Korean', 'Chinese (Simplified)', 'Spanish', 'Portuguese'];
   static const _presets = {
     'OpenAI': ['https://api.openai.com/v1', 'gpt-4o-mini'],
-    'Gemini': ['https://generativelanguage.googleapis.com/v1beta/openai', 'gemini-3.5-flash-lite'],
+    'Gemini': ['https://generativelanguage.googleapis.com/v1beta/openai', 'gemini-2.0-flash'],
     'OpenRouter': ['https://openrouter.ai/api/v1', 'openai/gpt-4o-mini'],
     'Groq': ['https://api.groq.com/openai/v1', 'llama-3.3-70b-versatile'],
   };
@@ -56,27 +57,49 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final s = context.watch<SettingsStore>();
+    final muted = Theme.of(context).colorScheme.onSurface.withAlpha(140);
     return Scaffold(
       appBar: AppBar(title: const Text('Pengaturan')),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          const Text('Kontrol layar', style: TextStyle(fontWeight: FontWeight.w700)),
+          const Text('Tampilan', style: TextStyle(fontWeight: FontWeight.w700)),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: SegmentedButton<String>(
+              segments: const [
+                ButtonSegment(value: 'system', label: Text('Otomatis'), icon: Icon(Icons.brightness_auto)),
+                ButtonSegment(value: 'light', label: Text('Terang'), icon: Icon(Icons.light_mode)),
+                ButtonSegment(value: 'dark', label: Text('Gelap'), icon: Icon(Icons.dark_mode)),
+              ],
+              selected: {s.themeMode},
+              onSelectionChanged: (v) => s.setThemeMode(v.first),
+            ),
+          ),
+          const Divider(height: 32),
+          const Text('Tombol di layar game', style: TextStyle(fontWeight: FontWeight.w700)),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
-            title: const Text('Gamepad virtual'),
-            subtitle: const Text('D-pad dan tombol aksi di atas game'),
+            title: const Text('Tampilkan tombol'),
+            subtitle: const Text('Joystick, E, X, Shift, dan I. Posisi dan ukurannya diatur dari menu di dalam game.'),
             value: s.gamepad,
             onChanged: s.setGamepad,
           ),
-          Text('Transparansi gamepad: ${(s.opacity * 100).round()}%'),
+          Text('Transparansi tombol: ${(s.opacity * 100).round()}%'),
           Slider(value: s.opacity, min: 0.15, max: 1, divisions: 17, onChanged: s.setOpacity),
           const Divider(height: 32),
-          const Text('Terjemahan', style: TextStyle(fontWeight: FontWeight.w700)),
+          const Text('Terjemahan AI', style: TextStyle(fontWeight: FontWeight.w700)),
+          const SizedBox(height: 4),
+          Text(
+            'Pengaturan ini dipakai oleh Terjemahan offline (menu titik tiga di kartu game) '
+            'dan oleh terjemahan langsung di dalam game.',
+            style: TextStyle(fontSize: 12, color: muted, height: 1.35),
+          ),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
-            title: const Text('Terjemahkan otomatis saat game dibuka'),
-            subtitle: const Text('Bisa dinyalakan atau dimatikan juga dari menu di dalam game'),
+            title: const Text('Terjemahan langsung saat bermain'),
+            subtitle: const Text('Opsional. Menerjemahkan sambil main, butuh internet.'),
             value: s.autoTranslate,
             onChanged: s.setAutoTranslate,
           ),
@@ -143,9 +166,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 16),
           FilledButton(onPressed: _save, child: const Text('Simpan')),
           const SizedBox(height: 8),
-          const Text(
+          Text(
             'API key hanya disimpan di HP ini dan dikirim langsung ke penyedia yang kamu pilih.',
-            style: TextStyle(fontSize: 12, color: Colors.white54),
+            style: TextStyle(fontSize: 12, color: muted),
+          ),
+          const Divider(height: 32),
+          const Text('Pemecahan masalah', style: TextStyle(fontWeight: FontWeight.w700)),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Mode debug'),
+            subtitle: const Text('Catat lebih banyak log dan tampilkan lencana merah di menu game saat ada error.'),
+            value: s.debug,
+            onChanged: s.setDebug,
+          ),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.bug_report_outlined),
+            title: const Text('Lihat log debug'),
+            subtitle: const Text('Error ditandai merah'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const DebugScreen())),
           ),
         ],
       ),
