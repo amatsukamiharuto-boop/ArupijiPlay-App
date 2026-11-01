@@ -9,6 +9,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Process
+import android.system.Os
 import android.util.Log
 import android.view.View
 import android.view.ViewGroup
@@ -20,6 +21,7 @@ import android.webkit.JavascriptInterface
 import android.webkit.PermissionRequest
 import android.webkit.RenderProcessGoneDetail
 import android.webkit.WebChromeClient
+import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
@@ -44,6 +46,7 @@ class GameActivity : Activity() {
     private var defGamepad = true
     private var defOpacity = 0.55f
     private var hasKey = false
+    private var debug = false
     private var lang = "Indonesian"
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -69,7 +72,9 @@ class GameActivity : Activity() {
         val prev = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { t, e ->
             try {
-                File(filesDir, "last_crash.txt").writeText(Log.getStackTraceString(e))
+                val trace = Log.getStackTraceString(e)
+                File(filesDir, "last_crash.txt").writeText(trace)
+                DebugLog.add(applicationContext, "E", "Crash", trace)
             } catch (_: Throwable) {
             }
             prev?.uncaughtException(t, e)
@@ -78,6 +83,7 @@ class GameActivity : Activity() {
 
     private fun showFatal(e: Throwable) {
         Log.e("ArupijiGame", "Gagal membuka game", e)
+        DebugLog.add(applicationContext, "E", "Game", Log.getStackTraceString(e))
         ErrorDialog.show(this, "Game gagal dibuka", Log.getStackTraceString(e)) { finish() }
     }
 
@@ -94,6 +100,7 @@ class GameActivity : Activity() {
         defTranslate = intent.getBooleanExtra("translate", false)
         defGamepad = intent.getBooleanExtra("gamepad", true)
         defOpacity = intent.getFloatExtra("opacity", 0.55f)
+        debug = intent.getBooleanExtra("debug", false)
         lang = intent.getStringExtra("lang") ?: "Indonesian"
 
         val cfg = AiConfig(
@@ -126,7 +133,32 @@ class GameActivity : Activity() {
                 .show()
             return
         }
+        // Game hasil deploy PC biasanya hanya punya .ogg, sedangkan engine di HP meminta .m4a
+        // (atau sebaliknya). Buat alias supaya file yang diminta selalu ada.
+        ensureAudioAliases(File(path, "audio"))
+        DebugLog.add(applicationContext, "I", "Game", "Membuka $gameTitle ($path)")
         web.loadUrl(Uri.fromFile(index).toString())
+    }
+
+    private fun ensureAudioAliases(audioDir: File) {
+        if (!audioDir.exists()) return
+        try {
+            audioDir.walkTopDown().filter { it.isFile }.forEach { f ->
+                val other = when (f.extension.lowercase()) {
+                    "ogg" -> "m4a"
+                    "m4a" -> "ogg"
+                    else -> return@forEach
+                }
+                val alias = File(f.parentFile, f.nameWithoutExtension + "." + other)
+                if (!alias.exists()) {
+                    try {
+                        Os.symlink(f.absolutePath, alias.absolutePath)
+                    } catch (_: Throwable) {
+                    }
+                }
+            }
+        } catch (_: Throwable) {
+        }
     }
 
     @Suppress("DEPRECATION")
@@ -170,6 +202,10 @@ class GameActivity : Activity() {
                 return request.url.scheme != "file"
             }
 
+            override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
+                DebugLog.add(applicationContext, "W", "Resource", "${request.url} : ${error.description}")
+            }
+
             override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean {
                 finish()
                 return true
@@ -178,7 +214,13 @@ class GameActivity : Activity() {
 
         web.webChromeClient = object : WebChromeClient() {
             override fun onConsoleMessage(m: ConsoleMessage): Boolean {
-                Log.d("ArupijiGame", "${m.message()} (${m.sourceId()}:${m.lineNumber()})")
+                val line = "${m.message()} (${m.sourceId()?.substringAfterLast('/')}:${m.lineNumber()})"
+                Log.d("ArupijiGame", line)
+                when (m.messageLevel()) {
+                    ConsoleMessage.MessageLevel.ERROR -> DebugLog.add(applicationContext, "E", "JS", line)
+                    ConsoleMessage.MessageLevel.WARNING -> DebugLog.add(applicationContext, "W", "JS", line)
+                    else -> if (debug) DebugLog.add(applicationContext, "I", "JS", line)
+                }
                 return true
             }
 
@@ -197,7 +239,41 @@ class GameActivity : Activity() {
             .put("hasKey", hasKey)
             .put("lang", lang)
             .put("title", gameTitle)
+            .put("debug", debug)
             .toString()
+
+        @JavascriptInterface
+        fun getControls(): String =
+            getSharedPreferences("controls", Context.MODE_PRIVATE).getString("layout", "") ?: ""
+
+        @JavascriptInterface
+        fun setControls(json: String) {
+            getSharedPreferences("controls", Context.MODE_PRIVATE).edit().putString("layout", json).apply()
+        }
+
+        @JavascriptInterface
+        fun log(level: String, msg: String) {
+            if (level == "E" || level == "W" || debug) DebugLog.add(applicationContext, level, "JS", msg)
+        }
+
+        @JavascriptInterface
+        fun readLog(): String {
+            val lines = DebugLog.read(applicationContext).lines().filter { it.isNotBlank() }
+            return lines.takeLast(120).joinToString("\n")
+        }
+
+        @JavascriptInterface
+        fun clearLog() {
+            DebugLog.clear(applicationContext)
+        }
+
+        @JavascriptInterface
+        fun copyText(text: String) {
+            runOnUiThread {
+                val cm = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                cm.setPrimaryClip(android.content.ClipData.newPlainText("log", text))
+            }
+        }
 
         @JavascriptInterface
         fun setPref(key: String, value: String) {
