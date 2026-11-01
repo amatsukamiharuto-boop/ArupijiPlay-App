@@ -9,7 +9,7 @@ import java.util.UUID
 
 /**
  * Menyalin folder game dari SAF ke filesDir/games/<id>/ supaya bisa dibuka lewat file://
- * oleh WebView. Yang disalin hanya folder web-nya (yang punya index.html).
+ * oleh WebView. Aset yang terenkripsi langsung didekripsi supaya cover bisa dibaca.
  */
 class GameImporter(private val ctx: Context) {
 
@@ -59,12 +59,19 @@ class GameImporter(private val ctx: Context) {
         }
     }
 
+    /** Nama folder yang dipilih, melewati nama umum seperti "www". */
+    private fun folderName(tree: Uri): String {
+        val id = DocumentsContract.getTreeDocumentId(tree)
+        val parts = id.substringAfter(':', id).split('/').filter { it.isNotBlank() }
+        val generic = setOf("www", "game", "app", "project", "data", "files")
+        return parts.lastOrNull { it.lowercase() !in generic } ?: parts.lastOrNull() ?: "Game Baru"
+    }
+
     fun import(tree: Uri): Map<String, Any?> {
         val rootId = DocumentsContract.getTreeDocumentId(tree)
         val webRootId = findWebRoot(tree, rootId, 0)
             ?: throw IllegalStateException("index.html tidak ditemukan. Pilih folder game yang berisi index.html atau www/index.html.")
 
-        // game.json opsional, kalau ada dipakai untuk judul/cover
         var customTitle: String? = null
         var customCover: String? = null
         children(tree, rootId).firstOrNull { !it.isDir && it.name.equals("game.json", true) }?.let { gj ->
@@ -84,6 +91,7 @@ class GameImporter(private val ctx: Context) {
         val dest = File(ctx.filesDir, "games/$id")
         try {
             copyDir(tree, webRootId, dest)
+            GameCrypto.decryptAll(dest)
         } catch (e: Exception) {
             dest.deleteRecursively()
             throw e
@@ -96,41 +104,56 @@ class GameImporter(private val ctx: Context) {
         }
 
         var title = customTitle
-        if (title == null) {
-            try {
-                val sys = File(dest, "data/System.json")
-                if (sys.exists()) title = JSONObject(sys.readText()).optString("gameTitle").ifBlank { null }
-            } catch (_: Exception) {
-            }
-        }
-        if (title == null) {
-            title = DocumentsContract.getTreeDocumentId(tree).substringAfterLast('/').substringAfterLast(':').ifBlank { "Game Baru" }
-        }
-
-        val cover = findCover(dest, customCover)
+        if (title == null) title = readSystemTitle(dest)
+        if (title == null) title = readHtmlTitle(dest)
+        if (title == null) title = folderName(tree)
 
         return mapOf(
             "id" to id,
             "title" to title,
             "engine" to engine,
             "path" to dest.absolutePath,
-            "cover" to cover
+            "cover" to findCover(dest, customCover)
         )
     }
 
+    private fun readSystemTitle(dest: File): String? = try {
+        val sys = File(dest, "data/System.json")
+        if (sys.exists()) JSONObject(sys.readText().removePrefix("\uFEFF")).optString("gameTitle").trim().ifBlank { null } else null
+    } catch (_: Exception) {
+        null
+    }
+
+    private fun readHtmlTitle(dest: File): String? = try {
+        val html = File(dest, "index.html").readText()
+        Regex("<title>([^<]*)</title>", RegexOption.IGNORE_CASE).find(html)?.groupValues?.get(1)?.trim()?.ifBlank { null }
+    } catch (_: Exception) {
+        null
+    }
+
+    /** Pakai gambar judul game sendiri, bukan ikon bawaan RPG Maker. */
     private fun findCover(dest: File, custom: String?): String? {
         if (custom != null) {
             val f = File(dest, custom)
             if (f.exists()) return f.absolutePath
         }
-        val exts = setOf("png", "jpg", "jpeg", "webp")
-        File(dest, "img/titles1").listFiles()
-            ?.filter { it.extension.lowercase() in exts }
-            ?.minByOrNull { it.name }
-            ?.let { return it.absolutePath }
-        listOf("icon/icon.png", "icon.png", "cover.png", "cover.jpg").forEach {
-            val f = File(dest, it)
-            if (f.exists()) return f.absolutePath
+        val exts = listOf("png", "jpg", "jpeg", "webp")
+        try {
+            val sys = JSONObject(File(dest, "data/System.json").readText().removePrefix("\uFEFF"))
+            val n = sys.optString("title1Name")
+            if (n.isNotBlank()) {
+                for (e in exts) {
+                    val f = File(dest, "img/titles1/$n.$e")
+                    if (f.exists()) return f.absolutePath
+                }
+            }
+        } catch (_: Exception) {
+        }
+        for (dir in listOf("img/titles1", "img/titles2")) {
+            File(dest, dir).listFiles()
+                ?.filter { it.extension.lowercase() in exts }
+                ?.minByOrNull { it.name }
+                ?.let { return it.absolutePath }
         }
         return null
     }
