@@ -59,6 +59,38 @@ GROOVY
 fi
 rm -rf test
 
+# Pustaka OCR (ML Kit, jalan di HP tanpa internet) untuk membaca tulisan di gambar game
+if ! grep -q "arupiji-deps" "$GRADLE"; then
+  case "$GRADLE" in
+    *.kts)
+      cat >> "$GRADLE" <<'KTS'
+
+// arupiji-deps
+dependencies {
+    implementation("com.google.mlkit:text-recognition:16.0.1")
+    implementation("com.google.mlkit:text-recognition-chinese:16.0.1")
+    implementation("com.google.mlkit:text-recognition-japanese:16.0.1")
+    implementation("com.google.mlkit:text-recognition-korean:16.0.1")
+    implementation("com.google.android.gms:play-services-tasks:18.2.0")
+}
+KTS
+      ;;
+    *)
+      cat >> "$GRADLE" <<'GROOVY'
+
+// arupiji-deps
+dependencies {
+    implementation 'com.google.mlkit:text-recognition:16.0.1'
+    implementation 'com.google.mlkit:text-recognition-chinese:16.0.1'
+    implementation 'com.google.mlkit:text-recognition-japanese:16.0.1'
+    implementation 'com.google.mlkit:text-recognition-korean:16.0.1'
+    implementation 'com.google.android.gms:play-services-tasks:18.2.0'
+}
+GROOVY
+      ;;
+  esac
+fi
+
 grep -n "minSdk\|namespace\|applicationId" "$GRADLE" || true
 if ! grep -q "minSdk = 26" "$GRADLE"; then
   echo "PERINGATAN: minSdk belum terpasang 26, cek isi $GRADLE" >&2
