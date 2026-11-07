@@ -360,12 +360,14 @@ Reply with the translation only.$gl"""
             target.writeText(root.toString())
             changed++
         }
+        DataPatch.applyAll(gameDir)
         return changed
     }
 
     fun revert(gameDir: File) {
         val orig = File(gameDir, "data_orig")
         if (orig.exists()) orig.copyRecursively(File(gameDir, "data"), overwrite = true)
+        DataPatch.clear(gameDir)
     }
 
     private fun applyFile(
