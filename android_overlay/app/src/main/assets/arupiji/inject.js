@@ -852,6 +852,7 @@
     sl.addEventListener('change', function () { savePref('opacity', parseFloat(sl.value)); });
     panel.appendChild(sl);
 
+    panel.appendChild(row('Cheat (mirip MTools)', '', function () { panel.style.display = 'none'; openCheat(); }));
     panel.appendChild(row('Edit terjemahan langsung', '', function () { panel.style.display = 'none'; openStudio(); }));
     panel.appendChild(row('Log dan error', jsErrors.length ? jsErrors.length + ' error' : '', function () { panel.style.display = 'none'; openLog(); }, true));
     panel.appendChild(row('Keluar ke launcher', '', function () { N.exitGame(); }));
@@ -862,6 +863,853 @@
     renderPanel();
     panel.style.display = 'block';
   });
+
+  /* ---------- cheat (mirip MTools) ---------- */
+
+  (function () {
+    var c = [
+      '.ch-box{display:flex;flex-direction:column;overflow:hidden;width:min(760px,96vw);height:min(94vh,540px);padding:10px}',
+      '.ch-head{display:flex;align-items:center;gap:8px;margin-bottom:6px}.ch-head b{color:#8fd0f7;font-size:15px}',
+      '.ch-sub{color:#8aa0b4;font-size:11px}.ch-head .ch-close{margin-left:auto}',
+      '.ch-tabs{display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;touch-action:pan-x}',
+      '.ch-tab{flex:0 0 auto;padding:7px 12px;border-radius:8px;border:0;background:#222a36;color:#c9d6e2;font-size:13px}',
+      '.ch-tab.on{background:#5bb8f0;color:#06222f;font-weight:700}',
+      '.ch-body{flex:1;overflow-y:auto;touch-action:pan-y;padding-right:2px}',
+      '.ch-sec{color:#8aa0b4;font-size:11px;letter-spacing:.5px;margin:12px 2px 6px}',
+      '.ch-row{display:flex;justify-content:space-between;align-items:center;width:100%;margin:0 0 6px;padding:10px 12px;border:0;border-radius:9px;background:#222a36;color:#e8eef5;font-size:13px;text-align:left}',
+      '.ch-tag{font-size:11px;color:#8aa0b4;font-weight:700}.ch-tag.on{color:#7ee787}',
+      '.ch-btn{padding:7px 10px;border-radius:7px;border:0;background:#2a3442;color:#fff;font-size:12px;margin:2px}',
+      '.ch-btn.on{background:#2e7d32}',
+      '.ch-field{display:flex;align-items:center;gap:6px;margin:5px 0;flex-wrap:wrap}',
+      '.ch-fl{min-width:56px;font-size:12px;color:#c9d6e2}',
+      '.ch-in{width:110px;background:#0e1218;color:#fff;border:1px solid #2c3644;border-radius:7px;padding:7px;font-size:13px}',
+      '.ch-search{width:100%;background:#0e1218;color:#fff;border:1px solid #2c3644;border-radius:8px;padding:8px;font-size:13px;margin-bottom:6px}',
+      '.ch-bar{display:flex;align-items:center;gap:6px;margin-bottom:6px}.ch-bar .ch-search{margin:0;flex:1}',
+      '.ch-item{background:#1b222d;border-radius:9px;padding:8px 10px;margin-bottom:6px}',
+      '.ch-name{font-size:13px;margin-bottom:4px}.ch-id{color:#8aa0b4;font-size:11px}',
+      '.ch-acts{display:flex;align-items:center;flex-wrap:wrap;gap:2px}.ch-cnt{color:#ffd54f;font-size:12px;min-width:54px}'
+    ].join('');
+    // awalan kelas supaya menang atas aturan umum .arp-modal button / input
+    c = c.replace(/(^|\})(\.ch-(?!box))/g, '$1.arp-modal .ch-box $2');
+    var s2 = document.createElement('style');
+    s2.textContent = c;
+    document.head.appendChild(s2);
+  })();
+
+
+  var cheat = { god: false, oneHit: false, noclip: false, noEncounter: false, noCost: false, keepItems: false,
+    bigStack: false, walkBonus: 0, gameSpeed: 1, expMul: 1, goldMul: 1 };
+  (function () {
+    try {
+      var cs = JSON.parse(N.getCheats() || '{}');
+      Object.keys(cs).forEach(function (k) { if (k in cheat) cheat[k] = cs[k]; });
+    } catch (e) {}
+  })();
+  function saveCheat() { try { N.setCheats(JSON.stringify(cheat)); } catch (e) {} }
+
+  function wrapM(proto, name, fn) {
+    var o = proto[name];
+    if (typeof o !== 'function') return;
+    proto[name] = function () { return fn.call(this, o, Array.prototype.slice.call(arguments)); };
+  }
+
+  function hookCheats() {
+    if (!window.Game_Action || !window.Game_Player || !window.Game_Party || !window.Game_Troop ||
+        !window.Game_Battler || !window.Game_BattlerBase || !window.SceneManager) return false;
+    if (Game_Player.prototype.__arpCheat) return true;
+    Game_Player.prototype.__arpCheat = true;
+
+    // kebal: HP anggota party tidak berkurang (serangan, racun, lantai damage)
+    wrapM(Game_Battler.prototype, 'gainHp', function (o, a) {
+      if (cheat.god && a[0] < 0 && this.isActor && this.isActor()) return;
+      return o.apply(this, a);
+    });
+    // sekali pukul: damage ke musuh dibuat sangat besar
+    wrapM(Game_Action.prototype, 'executeDamage', function (o, a) {
+      if (cheat.oneHit && a[1] > 0 && a[0] && a[0].isEnemy && a[0].isEnemy()) a[1] = 99999999;
+      return o.apply(this, a);
+    });
+    // tembus tembok
+    wrapM(Game_Player.prototype, 'canPass', function (o, a) {
+      if (cheat.noclip && window.$gameMap) {
+        var x2 = $gameMap.roundXWithDirection(a[0], a[2]), y2 = $gameMap.roundYWithDirection(a[1], a[2]);
+        if ($gameMap.isValid(x2, y2)) return true;
+      }
+      return o.apply(this, a);
+    });
+    wrapM(Game_Player.prototype, 'realMoveSpeed', function (o, a) { return o.apply(this, a) + cheat.walkBonus; });
+    wrapM(Game_Player.prototype, 'canEncounter', function (o, a) { return cheat.noEncounter ? false : o.apply(this, a); });
+    wrapM(Game_BattlerBase.prototype, 'paySkillCost', function (o, a) {
+      if (cheat.noCost && this.isActor && this.isActor()) return;
+      return o.apply(this, a);
+    });
+    wrapM(Game_Party.prototype, 'consumeItem', function (o, a) { if (cheat.keepItems) return; return o.apply(this, a); });
+    wrapM(Game_Party.prototype, 'maxItems', function (o, a) { return cheat.bigStack ? 9999 : o.apply(this, a); });
+    wrapM(Game_Troop.prototype, 'expTotal', function (o, a) { return Math.floor(o.apply(this, a) * cheat.expMul); });
+    wrapM(Game_Troop.prototype, 'goldTotal', function (o, a) { return Math.floor(o.apply(this, a) * cheat.goldMul); });
+    // kecepatan game: update scene diulang beberapa kali per frame
+    var ou = SceneManager.updateScene;
+    if (typeof ou === 'function') {
+      SceneManager.updateScene = function () {
+        ou.call(this);
+        for (var i = 1; i < (cheat.gameSpeed | 0); i++) ou.call(this);
+      };
+    }
+    return true;
+  }
+  var cheatTries = 0;
+  var cheatTimer = setInterval(function () {
+    cheatTries++;
+    if (hookCheats() || cheatTries > 120) clearInterval(cheatTimer);
+  }, 700);
+
+  /* ---- tampilan ---- */
+
+  var chModal = el('div', 'arp-cheat', 'arp-modal arp-hit');
+  var chBox = el('div', null, 'box ch-box');
+  chModal.appendChild(chBox);
+  root.appendChild(chModal);
+  guardKeys(chModal);
+
+  var CH_TABS = [['Umum', 'general'], ['Item', 'items'], ['Senjata', 'weapons'], ['Armor', 'armors'],
+    ['Switch', 'switches'], ['Variabel', 'vars'], ['Aktor', 'actors'], ['Teleport', 'tp'],
+    ['Data', 'data'], ['Event', 'event'], ['Save', 'save'], ['Konsol', 'console']];
+  var chTab = 'general', chActor = 0, chShowAll = false;
+
+  function gameReady() {
+    return !!(window.$gameParty && window.$gameSwitches && window.$gameVariables && window.$gameActors && window.$dataSystem);
+  }
+  function openCheat() {
+    if (!gameReady()) { toast('Mulai game baru atau muat save dulu, baru cheat bisa dipakai'); return; }
+    renderCheat();
+    chModal.style.display = 'flex';
+  }
+  function mkBtn(text, fn, cls) {
+    var b = el('button', null, 'ch-btn' + (cls ? ' ' + cls : ''), text);
+    b.addEventListener('click', fn);
+    return b;
+  }
+  function numBox(v) {
+    var i = document.createElement('input');
+    i.type = 'text';
+    i.setAttribute('inputmode', 'numeric');
+    i.className = 'ch-in';
+    i.value = String(v);
+    return i;
+  }
+
+  function renderCheat() {
+    chBox.innerHTML = '';
+    var head = el('div', null, 'ch-head', '<b>Cheat</b> <span class="ch-sub">mirip MTools, hanya untuk game yang sedang berjalan</span>');
+    head.appendChild(mkBtn('Tutup', function () { chModal.style.display = 'none'; }, 'ch-close'));
+    var tabs = el('div', null, 'ch-tabs');
+    CH_TABS.forEach(function (t) {
+      var b = el('button', null, 'ch-tab' + (chTab === t[1] ? ' on' : ''), t[0]);
+      b.addEventListener('click', function () { chTab = t[1]; renderCheat(); });
+      tabs.appendChild(b);
+    });
+    var body = el('div', null, 'ch-body');
+    chBox.appendChild(head);
+    chBox.appendChild(tabs);
+    chBox.appendChild(body);
+    try {
+      ({ general: tabGeneral, items: tabItems, weapons: tabWeapons, armors: tabArmors,
+        switches: tabSwitches, vars: tabVars, actors: tabActors, tp: tabTeleport,
+        data: tabData, event: tabEvents, save: tabSave, console: tabConsole })[chTab](body);
+    } catch (e) {
+      nlog('E', 'Cheat: ' + (e && e.stack || e));
+      body.appendChild(el('div', null, 'ch-sub', 'Tab ini gagal dibuka: ' + esc(e && e.message || e)));
+    }
+  }
+
+  function section(body, title) { body.appendChild(el('div', null, 'ch-sec', title)); }
+
+  function toggleRow(body, label, key) {
+    var b = el('button', null, 'ch-row', '<span>' + label + '</span><span class="ch-tag' + (cheat[key] ? ' on' : '') + '">' + (cheat[key] ? 'ON' : 'OFF') + '</span>');
+    b.addEventListener('click', function () { cheat[key] = !cheat[key]; saveCheat(); renderCheat(); });
+    body.appendChild(b);
+  }
+  function cycleRow(body, label, key, values, fmt) {
+    var cur = fmt ? fmt(cheat[key]) : cheat[key];
+    var b = el('button', null, 'ch-row', '<span>' + label + '</span><span class="ch-tag on">' + cur + '</span>');
+    b.addEventListener('click', function () {
+      var i = values.indexOf(cheat[key]);
+      cheat[key] = values[(i + 1) % values.length];
+      saveCheat();
+      renderCheat();
+    });
+    body.appendChild(b);
+  }
+
+  function tabGeneral(body) {
+    section(body, 'GOLD');
+    var gold = numBox($gameParty.gold());
+    var gr = el('div', null, 'ch-field');
+    gr.appendChild(el('span', null, 'ch-fl', 'Gold'));
+    gr.appendChild(gold);
+    gr.appendChild(mkBtn('Set', function () { var v = Math.floor(Number(gold.value)); if (!isNaN(v)) { $gameParty.gainGold(v - $gameParty.gold()); gold.value = $gameParty.gold(); } }));
+    gr.appendChild(mkBtn('Tambah', function () { var v = Math.floor(Number(gold.value)); if (!isNaN(v)) { $gameParty.gainGold(v); gold.value = $gameParty.gold(); } }));
+    gr.appendChild(mkBtn('Max', function () { $gameParty.gainGold(99999999); gold.value = $gameParty.gold(); }));
+    body.appendChild(gr);
+
+    section(body, 'PARTY');
+    var pr = el('div', null, 'ch-acts');
+    pr.appendChild(mkBtn('Pulihkan semua anggota', function () { $gameParty.members().forEach(function (m) { m.recoverAll(); }); toast('Party pulih penuh'); }));
+    pr.appendChild(mkBtn('Isi TP penuh', function () { $gameParty.members().forEach(function (m) { m.setTp(m.maxTp ? m.maxTp() : 100); }); toast('TP penuh'); }));
+    body.appendChild(pr);
+
+    section(body, 'BATTLE');
+    var br = el('div', null, 'ch-acts');
+    br.appendChild(mkBtn('Bunuh semua musuh', function () {
+      if (!$gameParty.inBattle()) { toast('Hanya bisa saat sedang battle'); return; }
+      $gameTroop.members().forEach(function (e) { e.setHp(0); });
+      toast('Semua musuh dikalahkan');
+    }));
+    br.appendChild(mkBtn('Kabur dari battle', function () {
+      if (!$gameParty.inBattle()) { toast('Hanya bisa saat sedang battle'); return; }
+      chModal.style.display = 'none';
+      BattleManager.processAbort();
+    }));
+    body.appendChild(br);
+
+    section(body, 'CHEAT AKTIF');
+    toggleRow(body, 'Kebal (HP party tidak berkurang)', 'god');
+    toggleRow(body, 'Sekali pukul (musuh langsung mati)', 'oneHit');
+    toggleRow(body, 'Tembus tembok', 'noclip');
+    toggleRow(body, 'Tanpa pertemuan musuh', 'noEncounter');
+    toggleRow(body, 'Skill tanpa biaya MP/TP', 'noCost');
+    toggleRow(body, 'Item tidak berkurang saat dipakai', 'keepItems');
+    toggleRow(body, 'Batas item 9999', 'bigStack');
+    cycleRow(body, 'Kecepatan jalan', 'walkBonus', [0, 1, 2, 3], function (v) { return v === 0 ? 'Normal' : '+' + v; });
+    cycleRow(body, 'Kecepatan game', 'gameSpeed', [1, 2, 3, 5], function (v) { return v + 'x'; });
+    cycleRow(body, 'Pengali EXP', 'expMul', [1, 2, 5, 10, 50], function (v) { return v + 'x'; });
+    cycleRow(body, 'Pengali Gold dari musuh', 'goldMul', [1, 2, 5, 10, 50], function (v) { return v + 'x'; });
+  }
+
+  // daftar dengan pencarian dan halaman
+  function listTab(body, entries, makeRow) {
+    var q = '', page = 0, per = 30;
+    var bar = el('div', null, 'ch-bar');
+    var inp = document.createElement('input');
+    inp.type = 'text'; inp.className = 'ch-search'; inp.placeholder = 'Cari nama atau ID';
+    bar.appendChild(inp);
+    var prev = mkBtn('<', function () { if (page > 0) { page--; draw(); } });
+    var next = mkBtn('>', function () { page++; draw(); });
+    var info = el('span', null, 'ch-sub');
+    [prev, info, next].forEach(function (n) { bar.appendChild(n); });
+    var list = el('div', null, 'ch-list');
+    function filtered() {
+      var s = q.toLowerCase();
+      return entries.filter(function (e) { return !s || String(e.id) === s || String(e.name || '').toLowerCase().indexOf(s) >= 0; });
+    }
+    function draw() {
+      var f = filtered();
+      var pages = Math.max(1, Math.ceil(f.length / per));
+      if (page >= pages) page = pages - 1;
+      list.innerHTML = '';
+      f.slice(page * per, page * per + per).forEach(function (e) { list.appendChild(makeRow(e)); });
+      info.textContent = (page + 1) + '/' + pages + ' (' + f.length + ')';
+    }
+    inp.addEventListener('input', function () { q = inp.value.trim(); page = 0; draw(); });
+    body.appendChild(bar);
+    body.appendChild(list);
+    draw();
+  }
+
+  function validData(arr) {
+    var out = [];
+    (arr || []).forEach(function (d) { if (d && d.name) out.push(d); });
+    return out;
+  }
+
+  function itemRow(item) {
+    var r = el('div', null, 'ch-item');
+    var tag = item.itypeId === 2 ? ' <span class="ch-tag">KEY</span>' : '';
+    r.appendChild(el('div', null, 'ch-name', '<span class="ch-id">#' + item.id + '</span> ' + esc(item.name) + tag));
+    var cnt = el('span', null, 'ch-cnt');
+    function upd() { cnt.textContent = '\u00d7 ' + $gameParty.numItems(item); }
+    var acts = el('div', null, 'ch-acts');
+    acts.appendChild(cnt);
+    [['-1', -1], ['+1', 1], ['+10', 10], ['+99', 99]].forEach(function (p) {
+      acts.appendChild(mkBtn(p[0], function () { $gameParty.gainItem(item, p[1], false); upd(); }));
+    });
+    acts.appendChild(mkBtn('Max', function () { $gameParty.gainItem(item, $gameParty.maxItems(item) - $gameParty.numItems(item), false); upd(); }));
+    acts.appendChild(mkBtn('0', function () { $gameParty.gainItem(item, -$gameParty.numItems(item), false); upd(); }));
+    r.appendChild(acts);
+    upd();
+    return r;
+  }
+  function tabItems(body) { listTab(body, validData(window.$dataItems), itemRow); }
+  function tabWeapons(body) { listTab(body, validData(window.$dataWeapons), itemRow); }
+  function tabArmors(body) { listTab(body, validData(window.$dataArmors), itemRow); }
+
+  function allCheck(body) {
+    var r = el('div', null, 'ch-acts');
+    var b = mkBtn(chShowAll ? 'Tampilkan semua (termasuk tanpa nama): ON' : 'Hanya yang punya nama', function () { chShowAll = !chShowAll; renderCheat(); });
+    r.appendChild(b);
+    body.appendChild(r);
+  }
+
+  function tabSwitches(body) {
+    allCheck(body);
+    var names = $dataSystem.switches || [];
+    var entries = [];
+    for (var i = 1; i < names.length; i++) if (chShowAll || names[i]) entries.push({ id: i, name: names[i] || '' });
+    listTab(body, entries, function (e) {
+      var r = el('div', null, 'ch-item');
+      r.appendChild(el('div', null, 'ch-name', '<span class="ch-id">#' + e.id + '</span> ' + esc(e.name || '(tanpa nama)')));
+      var b = el('button', null, 'ch-btn', '');
+      function upd() { var v = $gameSwitches.value(e.id); b.textContent = v ? 'ON' : 'OFF'; b.className = 'ch-btn' + (v ? ' on' : ''); }
+      b.addEventListener('click', function () { $gameSwitches.setValue(e.id, !$gameSwitches.value(e.id)); upd(); });
+      upd();
+      r.appendChild(b);
+      return r;
+    });
+  }
+
+  function tabVars(body) {
+    allCheck(body);
+    var names = $dataSystem.variables || [];
+    var entries = [];
+    for (var i = 1; i < names.length; i++) if (chShowAll || names[i]) entries.push({ id: i, name: names[i] || '' });
+    listTab(body, entries, function (e) {
+      var r = el('div', null, 'ch-item');
+      r.appendChild(el('div', null, 'ch-name', '<span class="ch-id">#' + e.id + '</span> ' + esc(e.name || '(tanpa nama)')));
+      var acts = el('div', null, 'ch-acts');
+      var inp = numBox($gameVariables.value(e.id));
+      function setFrom(text) {
+        var s = String(text).trim(), n = Number(s);
+        $gameVariables.setValue(e.id, (s !== '' && !isNaN(n)) ? n : s);
+        inp.value = $gameVariables.value(e.id);
+      }
+      acts.appendChild(inp);
+      acts.appendChild(mkBtn('Set', function () { setFrom(inp.value); }));
+      acts.appendChild(mkBtn('-1', function () { setFrom((Number($gameVariables.value(e.id)) || 0) - 1); }));
+      acts.appendChild(mkBtn('+1', function () { setFrom((Number($gameVariables.value(e.id)) || 0) + 1); }));
+      acts.appendChild(mkBtn('+100', function () { setFrom((Number($gameVariables.value(e.id)) || 0) + 100); }));
+      r.appendChild(acts);
+      return r;
+    });
+  }
+
+  function tabActors(body) {
+    var inParty = {};
+    $gameParty.allMembers().forEach(function (m) { inParty[m.actorId()] = true; });
+    var actors = validData(window.$dataActors).sort(function (a, b) {
+      return (inParty[b.id] ? 1 : 0) - (inParty[a.id] ? 1 : 0) || a.id - b.id;
+    });
+    if (!actors.length) { body.appendChild(el('div', null, 'ch-sub', 'Tidak ada data aktor.')); return; }
+    if (!chActor || !actors.some(function (a) { return a.id === chActor; })) chActor = actors[0].id;
+
+    var sel = document.createElement('select');
+    sel.className = 'ch-search';
+    actors.forEach(function (a) {
+      var o = document.createElement('option');
+      o.value = String(a.id);
+      o.textContent = (inParty[a.id] ? '\u2605 ' : '') + a.name + ' (#' + a.id + ')';
+      sel.appendChild(o);
+    });
+    sel.value = String(chActor);
+    sel.addEventListener('change', function () { chActor = parseInt(sel.value, 10); renderCheat(); });
+    body.appendChild(sel);
+
+    var actor = $gameActors.actor(chActor);
+    if (!actor) { body.appendChild(el('div', null, 'ch-sub', 'Aktor tidak tersedia.')); return; }
+
+    function field(label, get, set) {
+      var r = el('div', null, 'ch-field');
+      r.appendChild(el('span', null, 'ch-fl', label));
+      var inp = numBox(get());
+      r.appendChild(inp);
+      r.appendChild(mkBtn('Set', function () {
+        var v = Math.floor(Number(inp.value));
+        if (isNaN(v)) return;
+        set(v);
+        inp.value = get();
+      }));
+      body.appendChild(r);
+    }
+    function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+    section(body, actor.name().toUpperCase());
+    var q = el('div', null, 'ch-acts');
+    q.appendChild(mkBtn('Pulihkan penuh', function () { actor.recoverAll(); renderCheat(); }));
+    q.appendChild(mkBtn('Level maksimal', function () { actor.changeLevel(actor.maxLevel(), false); renderCheat(); }));
+    q.appendChild(mkBtn(inParty[chActor] ? 'Keluarkan dari party' : 'Masukkan ke party', function () {
+      if (inParty[chActor]) $gameParty.removeActor(chActor); else $gameParty.addActor(chActor);
+      renderCheat();
+    }));
+    body.appendChild(q);
+
+    field('Level', function () { return actor.level; }, function (v) { actor.changeLevel(clamp(v, 1, actor.maxLevel()), false); });
+    field('EXP', function () { return actor.currentExp(); }, function (v) { actor.changeExp(Math.max(0, v), false); });
+    field('HP', function () { return actor.hp; }, function (v) { actor.setHp(Math.max(0, v)); });
+    field('MP', function () { return actor.mp; }, function (v) { actor.setMp(Math.max(0, v)); });
+    field('TP', function () { return actor.tp; }, function (v) { actor.setTp(Math.max(0, v)); });
+    ['MHP', 'MMP', 'ATK', 'DEF', 'MAT', 'MDF', 'AGI', 'LUK'].forEach(function (n, i) {
+      field(n, function () { return actor.param(i); }, function (v) { actor.addParam(i, v - actor.param(i)); });
+    });
+
+    section(body, 'SKILL');
+    var sr = el('div', null, 'ch-acts');
+    sr.appendChild(mkBtn('Pelajari semua skill', function () {
+      validData(window.$dataSkills).forEach(function (s) { actor.learnSkill(s.id); });
+      toast('Semua skill dipelajari');
+      renderCheat();
+    }));
+    body.appendChild(sr);
+    listTab(body, validData(window.$dataSkills), function (s) {
+      var r = el('div', null, 'ch-item');
+      r.appendChild(el('div', null, 'ch-name', '<span class="ch-id">#' + s.id + '</span> ' + esc(s.name)));
+      var b = el('button', null, 'ch-btn', '');
+      function upd() { var v = actor.isLearnedSkill(s.id); b.textContent = v ? 'Dipelajari' : 'Belum'; b.className = 'ch-btn' + (v ? ' on' : ''); }
+      b.addEventListener('click', function () {
+        if (actor.isLearnedSkill(s.id)) actor.forgetSkill(s.id); else actor.learnSkill(s.id);
+        upd();
+      });
+      upd();
+      r.appendChild(b);
+      return r;
+    });
+  }
+
+  function tabTeleport(body) {
+    var maps = validData(window.$dataMapInfos);
+    section(body, 'POSISI SEKARANG');
+    body.appendChild(el('div', null, 'ch-sub', 'Map #' + $gameMap.mapId() + ', x ' + $gamePlayer.x + ', y ' + $gamePlayer.y));
+    section(body, 'PINDAH KE');
+    var sel = document.createElement('select');
+    sel.className = 'ch-search';
+    maps.forEach(function (m) {
+      var o = document.createElement('option');
+      o.value = String(m.id);
+      o.textContent = '#' + m.id + ' ' + m.name;
+      sel.appendChild(o);
+    });
+    sel.value = String($gameMap.mapId());
+    body.appendChild(sel);
+    var r = el('div', null, 'ch-field');
+    var xi = numBox($gamePlayer.x), yi = numBox($gamePlayer.y);
+    r.appendChild(el('span', null, 'ch-fl', 'X'));
+    r.appendChild(xi);
+    r.appendChild(el('span', null, 'ch-fl', 'Y'));
+    r.appendChild(yi);
+    body.appendChild(r);
+    var go = el('div', null, 'ch-acts');
+    go.appendChild(mkBtn('Pindah sekarang', function () {
+      if ($gameParty.inBattle()) { toast('Tidak bisa pindah saat battle'); return; }
+      var id = parseInt(sel.value, 10), x = Math.floor(Number(xi.value)), y = Math.floor(Number(yi.value));
+      if (isNaN(id) || isNaN(x) || isNaN(y)) return;
+      $gamePlayer.reserveTransfer(id, x, y, $gamePlayer.direction(), 0);
+      chModal.style.display = 'none';
+      toast('Berpindah ke map #' + id);
+    }, 'on'));
+    body.appendChild(go);
+  }
+
+  /* ---------- editor data, event, save, konsol ---------- */
+
+  (function () {
+    var c = [
+      '.ch-btn.del{background:#c62828}',
+      '.ch-log{font-family:monospace;font-size:11px;white-space:pre-wrap;word-break:break-all;background:#0e1218;border-radius:8px;padding:8px;margin-top:8px;max-height:150px;overflow:auto;color:#9ad1a0}',
+      '.ch-log .bad{color:#ff6b6b}',
+      '.ch-note{color:#8aa0b4;font-size:11px;line-height:1.4;margin:4px 2px 8px}'
+    ].join('');
+    c = c.replace(/(^|\})(\.ch-)/g, '$1.arp-modal .ch-box $2');
+    var s3 = document.createElement('style');
+    s3.textContent = c;
+    document.head.appendChild(s3);
+  })();
+
+  function note(body, text) { body.appendChild(el('div', null, 'ch-note', text)); }
+  function fmtVal(r) {
+    if (r === undefined) return 'undefined';
+    if (r !== null && typeof r === 'object') { try { return JSON.stringify(r); } catch (e) { return String(r); } }
+    return String(r);
+  }
+
+  /* ---- editor data game ---- */
+
+  var DATA_SETS = [
+    ['Item', '$dataItems', 'Items.json'], ['Senjata', '$dataWeapons', 'Weapons.json'], ['Armor', '$dataArmors', 'Armors.json'],
+    ['Skill', '$dataSkills', 'Skills.json'], ['Musuh', '$dataEnemies', 'Enemies.json'], ['Kelas', '$dataClasses', 'Classes.json'],
+    ['State', '$dataStates', 'States.json'], ['Aktor', '$dataActors', 'Actors.json']
+  ];
+  var LABELS = {
+    name: 'Nama', description: 'Deskripsi', price: 'Harga', consumable: 'Habis setelah dipakai', scope: 'Sasaran',
+    occasion: 'Kapan bisa dipakai', speed: 'Kecepatan', successRate: 'Peluang berhasil', repeats: 'Pengulangan',
+    tpGain: 'TP didapat', 'damage.type': 'Tipe damage (0 tidak ada, 1 HP, 2 MP, 3 serap HP, 4 serap MP, 5 dan 6 pulih)',
+    'damage.formula': 'Rumus damage', 'damage.variance': 'Variasi damage', 'damage.critical': 'Bisa critical',
+    'damage.elementId': 'Elemen', params: 'Stat [MHP, MMP, ATK, DEF, MAT, MDF, AGI, LUK]', mpCost: 'Biaya MP', tpCost: 'Biaya TP',
+    exp: 'EXP dari musuh', gold: 'Gold dari musuh', note: 'Catatan', wtypeId: 'Tipe senjata', atypeId: 'Tipe armor',
+    etypeId: 'Tipe slot equip', itypeId: 'Tipe item (2 = key item)', initialLevel: 'Level awal', maxLevel: 'Level maksimal',
+    nickname: 'Julukan', profile: 'Profil', effects: 'Efek (JSON)', traits: 'Sifat (JSON)', dropItems: 'Drop item (JSON)',
+    actions: 'Aksi musuh (JSON)', learnings: 'Skill per level (JSON)', expParams: 'Parameter EXP'
+  };
+  var chDataSet = 0, chDataEdit = null, dataPending = {};
+
+  function labelOf(path) { return LABELS[path] ? LABELS[path] + ' [' + path + ']' : path; }
+  function getPath(o, p) {
+    var s = p.split('.'), c = o;
+    for (var i = 0; i < s.length; i++) { if (c == null) return undefined; c = c[s[i]]; }
+    return c;
+  }
+  function setPathJS(o, p, v) {
+    var s = p.split('.'), c = o;
+    for (var i = 0; i < s.length - 1; i++) {
+      if (c[s[i]] == null || typeof c[s[i]] !== 'object') c[s[i]] = {};
+      c = c[s[i]];
+    }
+    c[s[s.length - 1]] = v;
+  }
+  function flatten(obj, prefix, out) {
+    Object.keys(obj).forEach(function (k) {
+      if (!prefix && k === 'id') return;
+      var v = obj[k], p = prefix ? prefix + '.' + k : k;
+      if (v && typeof v === 'object' && !Array.isArray(v)) flatten(v, p, out); else out.push(p);
+    });
+    return out;
+  }
+  function isPrimArray(v) {
+    return Array.isArray(v) && v.every(function (x) { return typeof x === 'number' || typeof x === 'string'; });
+  }
+
+  function savePending(key) {
+    var p = dataPending[key];
+    if (!p || !Object.keys(p.changes).length) return 0;
+    var ok = false;
+    try { ok = N.savePatch(JSON.stringify({ kind: 'fields', file: p.file, id: p.id, changes: p.changes })); } catch (e) {}
+    if (ok) delete dataPending[key];
+    return ok ? 1 : -1;
+  }
+  function saveAllPending() {
+    var keys = Object.keys(dataPending), saved = 0, fail = 0;
+    keys.forEach(function (k) { var r = savePending(k); if (r === 1) saved++; else if (r === -1) fail++; });
+    if (!keys.length) toast('Belum ada perubahan data untuk disimpan');
+    else toast(fail ? 'Gagal menyimpan ' + fail + ' entri' : saved + ' entri disimpan permanen');
+  }
+
+  function tabData(body) {
+    if (chDataEdit) { renderDataEditor(body); return; }
+    var sel = document.createElement('select');
+    sel.className = 'ch-search';
+    DATA_SETS.forEach(function (d, i) {
+      var o = document.createElement('option');
+      o.value = String(i); o.textContent = d[0];
+      sel.appendChild(o);
+    });
+    sel.value = String(chDataSet);
+    sel.addEventListener('change', function () { chDataSet = parseInt(sel.value, 10); renderCheat(); });
+    body.appendChild(sel);
+
+    note(body, 'Pilih entri lalu ubah isinya. Perubahan langsung berlaku di game yang sedang jalan. ' +
+      'Tekan Simpan permanen supaya tetap ada setelah game ditutup (file asli dicadangkan).');
+    var acts = el('div', null, 'ch-acts');
+    acts.appendChild(mkBtn('Simpan semua permanen', saveAllPending, 'on'));
+    acts.appendChild(mkBtn('Hapus semua perubahan permanen', function () {
+      var n = -1;
+      try { n = N.resetPatches(); } catch (e) {}
+      dataPending = {};
+      toast(n < 0 ? 'Gagal mengembalikan data' : 'Data dikembalikan ke asli. Mulai ulang game agar berlaku. Terapkan ulang terjemahan dari Studio bila perlu.');
+    }, 'del'));
+    body.appendChild(acts);
+
+    var set = DATA_SETS[chDataSet];
+    var arr = window[set[1]];
+    if (!arr) { note(body, 'Data ' + set[0] + ' belum dimuat.'); return; }
+    listTab(body, validData(arr), function (e) {
+      var r = el('div', null, 'ch-item');
+      r.appendChild(el('div', null, 'ch-name', '<span class="ch-id">#' + e.id + '</span> ' + esc(e.name)));
+      var a = el('div', null, 'ch-acts');
+      a.appendChild(mkBtn('Edit', function () { chDataEdit = { set: chDataSet, id: e.id }; renderCheat(); }, 'on'));
+      r.appendChild(a);
+      return r;
+    });
+  }
+
+  function renderDataEditor(body) {
+    var set = DATA_SETS[chDataEdit.set];
+    var entry = (window[set[1]] || [])[chDataEdit.id];
+    body.appendChild(mkBtn('< Kembali ke daftar', function () { chDataEdit = null; renderCheat(); }));
+    if (!entry) { note(body, 'Entri tidak ditemukan.'); return; }
+    var key = set[2] + '#' + entry.id;
+    section(body, set[0].toUpperCase() + ' #' + entry.id + '  ' + esc(entry.name || ''));
+    var acts = el('div', null, 'ch-acts');
+    acts.appendChild(mkBtn('Simpan permanen entri ini', function () {
+      var r = savePending(key);
+      toast(r === 1 ? 'Tersimpan permanen' : (r === -1 ? 'Gagal menyimpan' : 'Belum ada perubahan'));
+    }, 'on'));
+    body.appendChild(acts);
+    flatten(entry, '', []).forEach(function (path) { body.appendChild(dataField(entry, set, path, key)); });
+  }
+
+  function dataField(entry, set, path, key) {
+    var v = getPath(entry, path);
+    var r = el('div', null, 'ch-item');
+    r.appendChild(el('div', null, 'ch-name', esc(labelOf(path))));
+    var acts = el('div', null, 'ch-acts');
+
+    function commit(nv) {
+      setPathJS(entry, path, nv);
+      if (!dataPending[key]) dataPending[key] = { file: set[2], id: entry.id, changes: {} };
+      dataPending[key].changes[path] = nv;
+      toast('Diubah, langsung berlaku di game');
+    }
+
+    if (typeof v === 'boolean') {
+      var b = mkBtn(v ? 'ON' : 'OFF', function () {
+        var nv = !getPath(entry, path);
+        commit(nv);
+        b.textContent = nv ? 'ON' : 'OFF';
+        b.className = 'ch-btn' + (nv ? ' on' : '');
+      }, v ? 'on' : '');
+      acts.appendChild(b);
+    } else if (typeof v === 'number') {
+      var ni = numBox(v);
+      acts.appendChild(ni);
+      acts.appendChild(mkBtn('Set', function () {
+        var n = Number(ni.value);
+        if (ni.value.trim() === '' || isNaN(n)) { toast('Isi dengan angka'); return; }
+        commit(n);
+      }));
+    } else if (isPrimArray(v)) {
+      var ai = document.createElement('input');
+      ai.type = 'text'; ai.className = 'ch-search'; ai.value = v.join(', ');
+      var allNum = v.every(function (x) { return typeof x === 'number'; });
+      acts.appendChild(ai);
+      acts.appendChild(mkBtn('Set', function () {
+        var parts = ai.value.split(',').map(function (x) { return x.trim(); });
+        var out = parts.map(function (x) { return allNum ? Number(x) : x; });
+        if (allNum && out.some(function (x) { return isNaN(x); })) { toast('Semua isi harus angka, pisahkan dengan koma'); return; }
+        commit(out);
+      }));
+    } else {
+      var ta = document.createElement('textarea');
+      ta.className = 'ch-search';
+      ta.rows = (typeof v === 'string' && v.length < 60) ? 2 : 4;
+      var asJson = typeof v !== 'string';
+      ta.value = asJson ? JSON.stringify(v) : v;
+      acts.appendChild(ta);
+      acts.appendChild(mkBtn('Set', function () {
+        if (!asJson) { commit(ta.value); return; }
+        try { commit(JSON.parse(ta.value)); } catch (e) { toast('Format JSON tidak valid'); }
+      }));
+    }
+    r.appendChild(acts);
+    return r;
+  }
+
+  /* ---- event ---- */
+
+  function patchEvent(obj) {
+    var ok = false;
+    try { ok = N.savePatch(JSON.stringify(obj)); } catch (e) {}
+    return ok;
+  }
+
+  function tabEvents(body) {
+    if (!window.$gameMap || !$gameMap.events) { note(body, 'Peta belum dimuat.'); return; }
+    var mapId = $gameMap.mapId();
+    section(body, 'EVENT DI PETA INI (MAP #' + mapId + ')');
+    note(body, 'Jalankan, pindahkan, atau hapus event. Hapus dan pindah biasa hanya berlaku sampai peta dimuat ulang. ' +
+      'Tombol permanen menulis perubahan ke file peta.');
+    var evs = $gameMap.events().map(function (ev) {
+      var d = ev.event ? ev.event() : null;
+      return { id: ev.eventId(), name: (d && d.name) || ('EV' + ev.eventId()), ev: ev };
+    });
+    listTab(body, evs, function (e) {
+      var ev = e.ev;
+      var r = el('div', null, 'ch-item');
+      r.appendChild(el('div', null, 'ch-name', '<span class="ch-id">#' + e.id + '</span> ' + esc(e.name) +
+        ' <span class="ch-sub">(' + ev.x + ', ' + ev.y + ')</span>'));
+      var a = el('div', null, 'ch-acts');
+      a.appendChild(mkBtn('Jalankan', function () { ev.start(); chModal.style.display = 'none'; toast('Event dijalankan'); }, 'on'));
+      a.appendChild(mkBtn('Ke sana', function () { $gamePlayer.locate(ev.x, ev.y); chModal.style.display = 'none'; }));
+      a.appendChild(mkBtn('Tarik ke depanku', function () {
+        var d = $gamePlayer.direction();
+        ev.locate($gameMap.roundXWithDirection($gamePlayer.x, d), $gameMap.roundYWithDirection($gamePlayer.y, d));
+        toast('Event dipindah ke depanmu');
+        renderCheat();
+      }));
+      a.appendChild(mkBtn('Simpan posisi', function () {
+        toast(patchEvent({ kind: 'event', map: mapId, id: e.id, op: 'move', x: ev.x, y: ev.y }) ? 'Posisi disimpan permanen' : 'Gagal menyimpan');
+      }));
+      a.appendChild(mkBtn('Hapus', function () { ev.erase(); toast('Event dihapus sementara'); renderCheat(); }));
+      a.appendChild(mkBtn('Hapus permanen', function () {
+        ev.erase();
+        toast(patchEvent({ kind: 'event', map: mapId, id: e.id, op: 'remove' }) ? 'Event dihapus permanen' : 'Gagal menyimpan');
+        renderCheat();
+      }, 'del'));
+      ['A', 'B', 'C', 'D'].forEach(function (sw) {
+        var k = [mapId, e.id, sw];
+        var on = $gameSelfSwitches.value(k);
+        a.appendChild(mkBtn('Self ' + sw, function () { $gameSelfSwitches.setValue(k, !$gameSelfSwitches.value(k)); renderCheat(); }, on ? 'on' : ''));
+      });
+      r.appendChild(a);
+      return r;
+    });
+
+    section(body, 'EVENT UMUM');
+    listTab(body, validData(window.$dataCommonEvents), function (e) {
+      var r = el('div', null, 'ch-item');
+      r.appendChild(el('div', null, 'ch-name', '<span class="ch-id">#' + e.id + '</span> ' + esc(e.name)));
+      var a = el('div', null, 'ch-acts');
+      a.appendChild(mkBtn('Jalankan', function () {
+        $gameTemp.reserveCommonEvent(e.id);
+        chModal.style.display = 'none';
+        toast('Event umum #' + e.id + ' dijalankan');
+      }, 'on'));
+      r.appendChild(a);
+      return r;
+    });
+  }
+
+  /* ---- editor save ---- */
+
+  function stamp() {
+    var d = new Date(), p = function (n) { return (n < 10 ? '0' : '') + n; };
+    return d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + '_' + p(d.getHours()) + p(d.getMinutes()) + p(d.getSeconds());
+  }
+  function afterLoad() {
+    try { $gameSystem.onAfterLoad(); } catch (e) {}
+    try { Scene_Load.prototype.reloadMapIfUpdated.call({}); } catch (e) {}
+    SceneManager.goto(Scene_Map);
+    chModal.style.display = 'none';
+  }
+  function loadSlot(id) {
+    var r;
+    try { r = DataManager.loadGame(id); } catch (e) { nlog('E', 'Muat slot: ' + e); toast('Gagal memuat slot'); return; }
+    if (r && typeof r.then === 'function') r.then(function () { afterLoad(); toast('Slot ' + id + ' dimuat'); }, function () { toast('Gagal memuat slot'); });
+    else if (r) { afterLoad(); toast('Slot ' + id + ' dimuat'); }
+    else toast('Gagal memuat slot');
+  }
+  function saveSlot(id) {
+    try {
+      $gameSystem.onBeforeSave();
+      var r = DataManager.saveGame(id);
+      if (r && typeof r.then === 'function') r.then(function () { toast('Tersimpan di slot ' + id); renderCheat(); }, function () { toast('Gagal menyimpan'); });
+      else { toast(r ? 'Tersimpan di slot ' + id : 'Gagal menyimpan'); renderCheat(); }
+    } catch (e) { nlog('E', 'Simpan slot: ' + e); toast('Gagal menyimpan'); }
+  }
+  function removeSlot(id) {
+    try {
+      if (DataManager.makeSavename) {
+        StorageManager.remove(DataManager.makeSavename(id));
+        if (DataManager._globalInfo) { DataManager._globalInfo[id] = null; DataManager.saveGlobalInfo(); }
+      } else {
+        StorageManager.remove(id);
+        var gi = DataManager.loadGlobalInfo();
+        if (gi) { gi[id] = null; DataManager.saveGlobalInfo(gi); }
+      }
+      toast('Slot ' + id + ' dihapus');
+      renderCheat();
+    } catch (e) { nlog('E', 'Hapus slot: ' + e); toast('Gagal menghapus slot'); }
+  }
+  function readSlotJson(id, cb) {
+    try {
+      if (window.StorageManager && StorageManager.loadObject && DataManager.makeSavename) {
+        StorageManager.loadObject(DataManager.makeSavename(id)).then(cb, function () { toast('Gagal membaca slot'); });
+      } else cb(StorageManager.load(id));
+    } catch (e) { nlog('E', 'Baca slot: ' + e); toast('Gagal membaca slot'); }
+  }
+  function exportText(name, text) {
+    try { toast('Disimpan: ' + N.writeExport(name, text)); } catch (e) { toast('Gagal menulis file'); }
+  }
+  function applySaveText(text) {
+    try {
+      var contents = JsonEx.parse(text);
+      DataManager.createGameObjects();
+      DataManager.extractSaveContents(contents);
+      afterLoad();
+      toast('Save dimuat dari file. Simpan ke slot bila ingin menyimpannya.');
+    } catch (e) { nlog('E', 'Impor save: ' + e); toast('File save tidak valid'); }
+  }
+
+  function tabSave(body) {
+    if (!window.DataManager || !DataManager.maxSavefiles) { note(body, 'Fitur save tidak tersedia di game ini.'); return; }
+    note(body, 'Cara edit save: Muat slot, ubah isinya lewat tab Umum, Item, Aktor, Switch, Variabel, lalu Simpan ke slot. ' +
+      'Simpan di sini tidak dibatasi menu game. File ekspor ada di folder Android/data/com.arupiji.play/files/saves.');
+
+    section(body, 'KONDISI SEKARANG');
+    var top = el('div', null, 'ch-acts');
+    top.appendChild(mkBtn('Ekspor ke file', function () {
+      try { exportText('save_' + stamp() + '.json', JsonEx.stringify(DataManager.makeSaveContents())); } catch (e) { toast('Gagal mengekspor'); }
+    }, 'on'));
+    body.appendChild(top);
+
+    section(body, 'SLOT SAVE');
+    var max = DataManager.maxSavefiles();
+    for (var i = 1; i <= max; i++) (function (id) {
+      var exists = false, title = '';
+      try { exists = DataManager.isThisGameFile(id); } catch (e) {}
+      if (exists) {
+        try {
+          var info = DataManager.loadSavefileInfo ? DataManager.loadSavefileInfo(id) : (DataManager.savefileInfo ? DataManager.savefileInfo(id) : null);
+          if (info) title = (info.title ? info.title + '  ' : '') + (info.timestamp ? new Date(info.timestamp).toLocaleString() : '');
+        } catch (e) {}
+      }
+      var r = el('div', null, 'ch-item');
+      r.appendChild(el('div', null, 'ch-name', '<span class="ch-id">Slot ' + id + '</span> ' + (exists ? esc(title || 'terisi') : '<span class="ch-sub">kosong</span>')));
+      var a = el('div', null, 'ch-acts');
+      if (exists) {
+        a.appendChild(mkBtn('Muat', function () { loadSlot(id); }, 'on'));
+        a.appendChild(mkBtn('Ekspor', function () { readSlotJson(id, function (t) { exportText('slot' + id + '_' + stamp() + '.json', t); }); }));
+      }
+      a.appendChild(mkBtn('Simpan ke sini', function () { saveSlot(id); }));
+      if (exists) a.appendChild(mkBtn('Hapus', function () { removeSlot(id); }, 'del'));
+      r.appendChild(a);
+      body.appendChild(r);
+    })(i);
+
+    section(body, 'IMPOR DARI FILE');
+    var files = [];
+    try { files = JSON.parse(N.listExports()); } catch (e) {}
+    if (!files.length) note(body, 'Belum ada file ekspor.');
+    files.forEach(function (name) {
+      var r = el('div', null, 'ch-item');
+      r.appendChild(el('div', null, 'ch-name', esc(name)));
+      var a = el('div', null, 'ch-acts');
+      a.appendChild(mkBtn('Muat ke game', function () {
+        var t = '';
+        try { t = N.readExport(name); } catch (e) {}
+        if (!t) { toast('File kosong atau tidak terbaca'); return; }
+        applySaveText(t);
+      }, 'on'));
+      r.appendChild(a);
+      body.appendChild(r);
+    });
+  }
+
+  /* ---- konsol ---- */
+
+  var chConsoleText = '', chConsoleOut = [];
+  function tabConsole(body) {
+    note(body, 'Jalankan JavaScript langsung di game. Contoh: $gameParty.gainGold(1000)  atau  $gameVariables.setValue(5, 10)  atau  $gameParty.leader().name()');
+    var ta = document.createElement('textarea');
+    ta.className = 'ch-search'; ta.rows = 4; ta.placeholder = 'Tulis kode di sini'; ta.value = chConsoleText;
+    ta.addEventListener('input', function () { chConsoleText = ta.value; });
+    body.appendChild(ta);
+    var out = el('div', null, 'ch-log');
+    function draw() {
+      out.innerHTML = chConsoleOut.length ? chConsoleOut.map(function (o) {
+        return '<div class="' + (o.ok ? '' : 'bad') + '">' + (o.ok ? '&gt; ' : '! ') + esc(o.text) + '</div>';
+      }).join('') : 'Hasil akan tampil di sini.';
+    }
+    var acts = el('div', null, 'ch-acts');
+    acts.appendChild(mkBtn('Jalankan', function () {
+      var res;
+      try { res = { ok: true, text: fmtVal((0, eval)(ta.value)) }; }
+      catch (e) { res = { ok: false, text: String(e) }; nlog('E', 'Konsol: ' + e); }
+      chConsoleOut.unshift(res);
+      if (chConsoleOut.length > 20) chConsoleOut.pop();
+      draw();
+    }, 'on'));
+    acts.appendChild(mkBtn('Bersihkan hasil', function () { chConsoleOut = []; draw(); }));
+    body.appendChild(acts);
+    body.appendChild(out);
+    draw();
+  }
 
   /* ---------- edit studio ---------- */
 
