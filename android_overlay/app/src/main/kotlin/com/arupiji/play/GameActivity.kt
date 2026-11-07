@@ -47,6 +47,7 @@ class GameActivity : Activity() {
     private var defOpacity = 0.55f
     private var hasKey = false
     private var debug = false
+    private var gamePath = ""
     private var lang = "Indonesian"
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -96,6 +97,7 @@ class GameActivity : Activity() {
         }
 
         val path = intent.getStringExtra("path") ?: ""
+        gamePath = path
         gameTitle = intent.getStringExtra("title") ?: ""
         defTranslate = intent.getBooleanExtra("translate", false)
         defGamepad = intent.getBooleanExtra("gamepad", true)
@@ -138,6 +140,13 @@ class GameActivity : Activity() {
         ensureAudioAliases(File(path, "audio"))
         DebugLog.add(applicationContext, "I", "Game", "Membuka $gameTitle ($path)")
         web.loadUrl(Uri.fromFile(index).toString())
+    }
+
+    /** Folder ekspor save: Android/data/<app>/files/saves/<judul game> */
+    private fun exportDir(): File {
+        val base = getExternalFilesDir(null) ?: filesDir
+        val safe = gameTitle.replace(Regex("[^A-Za-z0-9._-]+"), "_").ifBlank { "game" }
+        return File(base, "saves/$safe").also { it.mkdirs() }
     }
 
     private fun ensureAudioAliases(audioDir: File) {
@@ -249,6 +258,59 @@ class GameActivity : Activity() {
         @JavascriptInterface
         fun setControls(json: String) {
             getSharedPreferences("controls", Context.MODE_PRIVATE).edit().putString("layout", json).apply()
+        }
+
+        @JavascriptInterface
+        fun getCheats(): String = gp.getString("cheats", "") ?: ""
+
+        @JavascriptInterface
+        fun setCheats(json: String) {
+            gp.edit().putString("cheats", json).apply()
+        }
+
+        @JavascriptInterface
+        fun savePatch(json: String): Boolean = try {
+            DataPatch.add(File(gamePath), json)
+            true
+        } catch (e: Exception) {
+            DebugLog.add(applicationContext, "E", "Patch", e.stackTraceToString())
+            false
+        }
+
+        @JavascriptInterface
+        fun resetPatches(): Int = try {
+            DataPatch.reset(File(gamePath))
+        } catch (e: Exception) {
+            DebugLog.add(applicationContext, "E", "Patch", e.stackTraceToString())
+            -1
+        }
+
+        @JavascriptInterface
+        fun patchCount(): Int = try {
+            DataPatch.count(File(gamePath))
+        } catch (_: Exception) {
+            0
+        }
+
+        @JavascriptInterface
+        fun writeExport(name: String, text: String): String {
+            val f = File(exportDir(), File(name).name)
+            f.writeText(text)
+            return f.absolutePath
+        }
+
+        @JavascriptInterface
+        fun readExport(name: String): String = try {
+            File(exportDir(), File(name).name).readText()
+        } catch (_: Exception) {
+            ""
+        }
+
+        @JavascriptInterface
+        fun listExports(): String {
+            val arr = JSONArray()
+            exportDir().listFiles()?.sortedByDescending { it.lastModified() }?.forEach { arr.put(it.name) }
+            return arr.toString()
         }
 
         @JavascriptInterface
