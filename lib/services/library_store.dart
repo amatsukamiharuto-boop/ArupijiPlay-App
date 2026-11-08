@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import '../models/game.dart';
@@ -12,6 +13,12 @@ class LibraryStore extends ChangeNotifier {
   List<Game> games = [];
   bool busy = false;
 
+  /// Keterangan proses tambah game. progress null = belum diketahui.
+  String importText = '';
+  double? importProgress;
+  bool canCancel = false;
+  Timer? _poll;
+
   Future<void> refresh() async {
     games = await _db.all();
     _sort();
@@ -25,12 +32,45 @@ class LibraryStore extends ChangeNotifier {
     });
   }
 
-  /// Balikin pesan untuk ditampilkan, atau null kalau dibatalkan.
-  Future<String?> addGame() async {
-    busy = true;
-    notifyListeners();
+  String _mb(num bytes) => (bytes / 1048576).toStringAsFixed(0);
+
+  Future<void> _pollOnce() async {
     try {
-      final meta = await NativeBridge.importGame();
+      final st = await NativeBridge.importStatus();
+      if (st['running'] != true) {
+        importText = 'Menunggu pilihan folder...';
+        importProgress = null;
+        canCancel = false;
+      } else {
+        final total = (st['totalBytes'] as num?) ?? 0;
+        final done = (st['doneBytes'] as num?) ?? 0;
+        final files = (st['totalFiles'] as num?)?.toInt() ?? 0;
+        final doneFiles = (st['doneFiles'] as num?)?.toInt() ?? 0;
+        if (total > 0) {
+          importProgress = (done / total).clamp(0.0, 1.0).toDouble();
+          importText = '${st['phase']}  ${_mb(done)} dari ${_mb(total)} MB  ($doneFiles/$files file)';
+        } else {
+          importProgress = null;
+          importText = '${st['phase']}';
+        }
+        canCancel = true;
+      }
+      notifyListeners();
+    } catch (_) {}
+  }
+
+  Future<void> cancelImport() => NativeBridge.importCancel();
+
+  /// Balikin pesan untuk ditampilkan, atau null kalau dibatalkan.
+  Future<String?> addGame({bool link = false}) async {
+    busy = true;
+    importText = 'Menunggu pilihan folder...';
+    importProgress = null;
+    canCancel = false;
+    notifyListeners();
+    _poll = Timer.periodic(const Duration(milliseconds: 500), (_) => _pollOnce());
+    try {
+      final meta = await NativeBridge.importGame(link: link);
       if (meta == null) return null;
       final game = Game(
         id: meta['id'] as String,
@@ -46,7 +86,9 @@ class LibraryStore extends ChangeNotifier {
     } on PlatformException catch (e) {
       return 'Gagal menambah game: ${e.message}';
     } finally {
+      _poll?.cancel();
       busy = false;
+      canCancel = false;
       notifyListeners();
     }
   }
