@@ -48,6 +48,7 @@ class GameActivity : Activity() {
     private var hasKey = false
     private var debug = false
     private var gamePath = ""
+    private var audioExt = ""
     private var lang = "Indonesian"
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -137,7 +138,9 @@ class GameActivity : Activity() {
         }
         // Game hasil deploy PC biasanya hanya punya .ogg, sedangkan engine di HP meminta .m4a
         // (atau sebaliknya). Buat alias supaya file yang diminta selalu ada.
-        ensureAudioAliases(File(path, "audio"))
+        // di folder asli (mode tanpa salin) symlink tidak bisa dibuat, ekstensi audio diperbaiki lewat skrip
+        if (path.startsWith(filesDir.absolutePath)) ensureAudioAliases(File(path, "audio"))
+        audioExt = detectAudioExt(File(path, "audio"))
         DebugLog.add(applicationContext, "I", "Game", "Membuka $gameTitle ($path)")
         web.loadUrl(Uri.fromFile(index).toString())
     }
@@ -149,6 +152,18 @@ class GameActivity : Activity() {
         return File(base, "saves/$safe").also { it.mkdirs() }
     }
 
+    private fun detectAudioExt(audio: File): String {
+        val exts = HashSet<String>()
+        for (d in listOf("bgm", "se", "me", "bgs")) {
+            File(audio, d).listFiles()?.take(30)?.forEach { exts.add(it.extension.lowercase()) }
+        }
+        return when {
+            exts.any { it == "ogg" || it == "rpgmvo" || it == "ogg_" } -> ".ogg"
+            exts.any { it == "m4a" || it == "rpgmvm" || it == "m4a_" } -> ".m4a"
+            else -> ""
+        }
+    }
+
     private fun ensureAudioAliases(audioDir: File) {
         if (!audioDir.exists()) return
         try {
@@ -156,6 +171,10 @@ class GameActivity : Activity() {
                 val other = when (f.extension.lowercase()) {
                     "ogg" -> "m4a"
                     "m4a" -> "ogg"
+                    "rpgmvo" -> "rpgmvm"
+                    "rpgmvm" -> "rpgmvo"
+                    "ogg_" -> "m4a_"
+                    "m4a_" -> "ogg_"
                     else -> return@forEach
                 }
                 val alias = File(f.parentFile, f.nameWithoutExtension + "." + other)
@@ -249,6 +268,9 @@ class GameActivity : Activity() {
             .put("lang", lang)
             .put("title", gameTitle)
             .put("debug", debug)
+            .put("audioExt", audioExt)
+            .put("cursor", gp.getBoolean("cursor", false))
+            .put("cursorSpeed", gp.getFloat("cursorSpeed", 1.6f).toDouble())
             .toString()
 
         @JavascriptInterface
@@ -342,7 +364,8 @@ class GameActivity : Activity() {
             val e = gp.edit()
             when (key) {
                 "opacity" -> e.putFloat(key, value.toFloatOrNull() ?: 0.55f)
-                "translate", "gamepad" -> e.putBoolean(key, value == "true")
+                "cursorSpeed" -> e.putFloat(key, value.toFloatOrNull() ?: 1.6f)
+                "translate", "gamepad", "cursor" -> e.putBoolean(key, value == "true")
             }
             e.apply()
         }
