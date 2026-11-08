@@ -1,18 +1,25 @@
 package com.arupiji.play
 
+import android.Manifest
 import android.content.Intent
+import android.net.Uri
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.provider.Settings
+import android.view.WindowManager
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
+import java.util.concurrent.CancellationException
 import java.util.concurrent.Executors
 
 class MainActivity : FlutterActivity() {
     private val reqPickFolder = 4101
     private var pendingImport: MethodChannel.Result? = null
+    private var pendingLink = false
     private val worker = Executors.newSingleThreadExecutor()
     private val ui = Handler(Looper.getMainLooper())
 
@@ -47,14 +54,29 @@ class MainActivity : FlutterActivity() {
     private fun handleNative(call: MethodCall, result: MethodChannel.Result) {
         val a = (call.arguments as? Map<*, *>) ?: emptyMap<String, Any?>()
         when (call.method) {
-            "importGame" -> startPicker(result)
+            "importGame" -> startPicker(result, a.b("link"))
+            "importStatus" -> result.success(ImportState.status())
+            "importCancel" -> {
+                ImportState.cancel = true
+                result.success(true)
+            }
+            "hasAllFiles" -> result.success(GameImporter.hasAllFilesAccess(applicationContext))
+            "requestAllFiles" -> {
+                requestAllFiles()
+                result.success(true)
+            }
+            "cleanOrphans" -> {
+                cleanOrphans(a.l("keep"))
+                result.success(true)
+            }
             "launchGame" -> {
                 launchGame(a)
                 result.success(true)
             }
             "deleteGame" -> {
                 val path = a.s("path")
-                if (path.isNotEmpty()) File(path).deleteRecursively()
+                // hanya hapus salinan di dalam app, jangan pernah menyentuh folder asli pengguna
+                if (path.isNotEmpty() && path.startsWith(filesDir.absolutePath)) File(path).deleteRecursively()
                 result.success(true)
             }
             "debugLog" -> {
@@ -70,12 +92,36 @@ class MainActivity : FlutterActivity() {
         }
     }
 
-    private fun startPicker(result: MethodChannel.Result) {
+    private fun requestAllFiles() {
+        if (Build.VERSION.SDK_INT >= 30) {
+            try {
+                startActivity(Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, Uri.parse("package:$packageName")))
+            } catch (_: Exception) {
+                startActivity(Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION))
+            }
+        } else {
+            requestPermissions(
+                arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE, Manifest.permission.WRITE_EXTERNAL_STORAGE), 7001
+            )
+        }
+    }
+
+    /** Hapus sisa salinan yang gagal atau dibatalkan (folder yang tidak ada di pustaka). */
+    private fun cleanOrphans(keep: List<String>) {
+        worker.execute {
+            File(filesDir, "games").listFiles()?.forEach { d ->
+                if (d.isDirectory && d.absolutePath !in keep) d.deleteRecursively()
+            }
+        }
+    }
+
+    private fun startPicker(result: MethodChannel.Result, link: Boolean) {
         if (pendingImport != null) {
             result.error("busy", "Import lain sedang berjalan", null)
             return
         }
         pendingImport = result
+        pendingLink = link
         val i = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         startActivityForResult(i, reqPickFolder)
     }
@@ -91,13 +137,20 @@ class MainActivity : FlutterActivity() {
             result.success(null)
             return
         }
+        val link = pendingLink
         worker.execute {
+            ui.post { window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
             try {
-                val meta = GameImporter(applicationContext).import(uri)
+                val importer = GameImporter(applicationContext)
+                val meta = if (link) importer.importLinked(uri) else importer.import(uri)
                 ui.post { result.success(meta) }
+            } catch (e: CancellationException) {
+                ui.post { result.success(null) }
             } catch (e: Exception) {
                 DebugLog.add(applicationContext, "E", "Import", e.stackTraceToString())
                 ui.post { result.error("import_failed", e.message ?: "Import gagal", null) }
+            } finally {
+                ui.post { window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
             }
         }
     }
