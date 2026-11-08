@@ -24,14 +24,42 @@ object GameCrypto {
         }
     }
 
+    private fun readFully(input: java.io.InputStream, buf: ByteArray): Int {
+        var n = 0
+        while (n < buf.size) {
+            val r = input.read(buf, n, buf.size - n)
+            if (r < 0) break
+            n += r
+        }
+        return n
+    }
+
+    /** Streaming: tidak memuat seluruh file ke memori. */
     private fun decryptFile(src: File, dst: File, key: ByteArray): Boolean {
-        val bytes = src.readBytes()
-        if (bytes.size <= 16) return false
-        val out = bytes.copyOfRange(16, bytes.size)
-        val n = minOf(16, out.size)
-        for (i in 0 until n) out[i] = (out[i].toInt() xor key[i].toInt()).toByte()
-        dst.writeBytes(out)
+        src.inputStream().buffered(256 * 1024).use { input ->
+            val header = ByteArray(16)
+            if (readFully(input, header) < 16) return false
+            val first = ByteArray(16)
+            val n = readFully(input, first)
+            for (i in 0 until n) first[i] = (first[i].toInt() xor key[i].toInt()).toByte()
+            dst.outputStream().buffered(256 * 1024).use { out ->
+                out.write(first, 0, n)
+                input.copyTo(out, 256 * 1024)
+            }
+        }
         return true
+    }
+
+    /** Dekripsi satu file ke tempat lain tanpa mengubah folder game (dipakai untuk cover). */
+    fun decryptToFile(gameDir: File, src: File, dst: File): Boolean {
+        return try {
+            val sys = JSONObject(File(gameDir, "data/System.json").readText().removePrefix("\uFEFF"))
+            val key = keyOf(sys.optString("encryptionKey", "")) ?: return false
+            dst.parentFile?.mkdirs()
+            decryptFile(src, dst, key)
+        } catch (_: Exception) {
+            false
+        }
     }
 
     /** Balikin jumlah file yang didekripsi. Aman dipanggil berulang. */
