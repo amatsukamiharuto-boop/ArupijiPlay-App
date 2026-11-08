@@ -7,9 +7,27 @@ class NativeBridge {
 
   /// Buka picker folder, salin game ke penyimpanan app, balikin metadata.
   /// Null kalau pengguna membatalkan.
-  static Future<Map<String, dynamic>?> importGame() async {
-    final r = await _ch.invokeMapMethod<String, dynamic>('importGame');
+  static Future<Map<String, dynamic>?> importGame({bool link = false}) async {
+    final r = await _ch.invokeMapMethod<String, dynamic>('importGame', {'link': link});
     return r;
+  }
+
+  /// Kemajuan penyalinan: running, phase, doneBytes, totalBytes, doneFiles, totalFiles, current.
+  static Future<Map<String, dynamic>> importStatus() async =>
+      await _ch.invokeMapMethod<String, dynamic>('importStatus') ?? {};
+
+  static Future<void> importCancel() => _ch.invokeMethod('importCancel');
+
+  static Future<bool> hasAllFilesAccess() async =>
+      (await _ch.invokeMethod<bool>('hasAllFiles')) ?? false;
+
+  static Future<void> requestAllFilesAccess() => _ch.invokeMethod('requestAllFiles');
+
+  /// Hapus sisa salinan game yang gagal atau dibatalkan.
+  static Future<void> cleanOrphans(List<String> keep) async {
+    try {
+      await _ch.invokeMethod('cleanOrphans', {'keep': keep});
+    } catch (_) {}
   }
 
   static Future<void> launchGame(Game g, SettingsStore s) {
