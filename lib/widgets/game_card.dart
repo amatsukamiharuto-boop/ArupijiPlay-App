@@ -98,7 +98,7 @@ class GameCard extends StatelessWidget {
   Widget _poster(ColorScheme scheme) {
     final cover = game.cover;
     if (cover != null && File(cover).existsSync()) {
-      return Image.file(File(cover), fit: BoxFit.cover, errorBuilder: (_, __, ___) => _fallback(scheme));
+      return Image.file(File(cover), fit: BoxFit.cover, cacheWidth: 420, errorBuilder: (_, __, ___) => _fallback(scheme));
     }
     return _fallback(scheme);
   }
