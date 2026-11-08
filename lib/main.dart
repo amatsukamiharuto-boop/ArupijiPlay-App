@@ -27,6 +27,7 @@ Future<void> main() async {
   final settings = await SettingsStore.load();
   final library = LibraryStore(await GameDb.open());
   await library.refresh();
+  await NativeBridge.cleanOrphans(library.games.map((g) => g.path).toList());
   runApp(MultiProvider(
     providers: [
       ChangeNotifierProvider<SettingsStore>.value(value: settings),
