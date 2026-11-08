@@ -8,7 +8,7 @@
   window.__arupijiLoaded = true;
 
   var N = window.ArupijiNative;
-  var prefs = { translate: false, gamepad: true, opacity: 0.55, hasKey: false, lang: 'Indonesian', title: '', debug: false };
+  var prefs = { translate: false, gamepad: true, opacity: 0.55, hasKey: false, lang: 'Indonesian', title: '', debug: false, cursor: false, cursorSpeed: 1.6, audioExt: '' };
   try { prefs = JSON.parse(N.getPrefs()); } catch (e) {}
 
   function savePref(k, v) {
@@ -42,6 +42,14 @@
     console.error = function () { nlog('E', Array.prototype.join.call(arguments, ' ')); oe.apply(console, arguments); };
     console.warn = function () { nlog('W', Array.prototype.join.call(arguments, ' ')); ow.apply(console, arguments); };
   })();
+
+  // Game hasil deploy PC biasanya hanya punya .ogg, engine di HP meminta .m4a. Samakan dengan file yang ada.
+  function hookAudio() {
+    if (!prefs.audioExt || !window.AudioManager || AudioManager.__arpExt) return;
+    AudioManager.__arpExt = true;
+    AudioManager.audioFileExt = function () { return prefs.audioExt; };
+  }
+  hookAudio();
 
   function hookLoadError() {
     if (!window.Graphics || !Graphics.printLoadingError || Graphics.__arpLE) return;
@@ -108,6 +116,9 @@
     '.arp-modal .acts{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}',
     '.arp-modal button{padding:9px 16px;border-radius:8px;border:0;font-size:14px;background:#2a3442;color:#fff}',
     '.arp-modal button.pri{background:#5bb8f0;color:#06222f;font-weight:700}',
+    '.arp-cpad{border-radius:18px;background:rgba(255,255,255,.08);font-size:12px;letter-spacing:1px}',
+    '.arp-click{border-radius:14px}',
+    '#arp-cursor{position:absolute;left:0;top:0;width:24px;height:24px;margin:-2px 0 0 -3px;pointer-events:none;display:none;z-index:5}',
     '.arp-log{font-family:monospace;font-size:11px;line-height:1.45;white-space:pre-wrap;word-break:break-all;background:#fff;color:#37474f;border-radius:8px;padding:8px;max-height:55vh;overflow:auto;touch-action:pan-y}',
     '.arp-log .e{color:#d50000;font-weight:700}.arp-log .w{color:#e65100}'
   ].join('');
@@ -444,6 +455,7 @@
     tries++;
     var a = hookMessages(), b = hookUI();
     hookLoadError();
+    hookAudio();
     if ((a && b) || tries > 120) {
       clearInterval(hookTimer);
       try {
@@ -470,8 +482,102 @@
     { id: 'e', type: 'key', label: 'E', code: 13, x: 0.91, y: 0.78, s: 1 },
     { id: 'x', type: 'key', label: 'X', code: 88, x: 0.80, y: 0.86, s: 1 },
     { id: 'shift', type: 'key', label: 'Shift', code: 16, x: 0.91, y: 0.54, s: 0.9 },
-    { id: 'i', type: 'action', action: 'inventory', label: 'I', x: 0.80, y: 0.62, s: 0.9 }
+    { id: 'i', type: 'action', action: 'inventory', label: 'I', x: 0.80, y: 0.62, s: 0.9 },
+    { id: 'cpad', type: 'cpad', cursor: true, x: 0.50, y: 0.70, s: 1.3 },
+    { id: 'cl', type: 'click', cursor: true, btn: 0, label: 'Kiri', x: 0.37, y: 0.88, s: 1 },
+    { id: 'cr', type: 'click', cursor: true, btn: 2, label: 'Kanan', x: 0.63, y: 0.88, s: 1 }
   ];
+
+  /* ---------- kursor seperti mouse ---------- */
+
+  var cur = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+  var heldMask = 0;
+  var cursorEl = el('div', 'arp-cursor', null,
+    '<svg viewBox="0 0 24 24" width="24" height="24"><path d="M3 2l16 9-7 2 4 8-3 1.5-4-8-5 5z" fill="#fff" stroke="#000" stroke-width="1.4" stroke-linejoin="round"/></svg>');
+  root.appendChild(cursorEl);
+
+  function sendMouse(type, button) {
+    var target = document.elementFromPoint(cur.x, cur.y) || document.body;
+    var bit = button === 2 ? 2 : 1;
+    if (type === 'mousedown') heldMask |= bit;
+    var ev;
+    try {
+      ev = new MouseEvent(type, { bubbles: true, cancelable: true, view: window, clientX: cur.x, clientY: cur.y,
+        screenX: cur.x, screenY: cur.y, button: button, buttons: heldMask, detail: 1 });
+    } catch (e) { return; }
+    target.dispatchEvent(ev);
+    if (type === 'mouseup') heldMask &= ~bit;
+  }
+  function moveCursorTo(x, y) {
+    cur.x = Math.max(0, Math.min(window.innerWidth - 1, x));
+    cur.y = Math.max(0, Math.min(window.innerHeight - 1, y));
+    cursorEl.style.left = cur.x + 'px';
+    cursorEl.style.top = cur.y + 'px';
+    sendMouse('mousemove', 0);
+  }
+  function clickAt(button) {
+    sendMouse('mousedown', button);
+    setTimeout(function () { sendMouse('mouseup', button); if (button === 0) sendMouse('click', 0); }, 60);
+  }
+  cursorEl.style.left = cur.x + 'px';
+  cursorEl.style.top = cur.y + 'px';
+
+  function makeCursorPad(c) {
+    var n = el('div', null, 'arp-ctl arp-cpad arp-hit', 'KURSOR');
+    var pid = null, lx = 0, ly = 0, t0 = 0, moved = 0;
+    n.addEventListener('pointerdown', function (e) {
+      if (editing) { startDrag(e, c, n); return; }
+      if (pid !== null) return;
+      pid = e.pointerId;
+      try { n.setPointerCapture(pid); } catch (x) {}
+      lx = e.clientX; ly = e.clientY; t0 = Date.now(); moved = 0;
+      n.classList.add('on');
+      e.preventDefault();
+    });
+    n.addEventListener('pointermove', function (e) {
+      if (editing || e.pointerId !== pid) return;
+      var dx = e.clientX - lx, dy = e.clientY - ly;
+      lx = e.clientX; ly = e.clientY;
+      moved += Math.abs(dx) + Math.abs(dy);
+      var sp = prefs.cursorSpeed || 1.6;
+      moveCursorTo(cur.x + dx * sp, cur.y + dy * sp);
+    });
+    function end(e) {
+      if (editing || e.pointerId !== pid) return;
+      pid = null;
+      n.classList.remove('on');
+      if (Date.now() - t0 < 220 && moved < 8) clickAt(0);   // ketuk cepat = klik kiri, seperti touchpad
+    }
+    n.addEventListener('pointerup', end);
+    n.addEventListener('pointercancel', end);
+    n.addEventListener('lostpointercapture', end);
+    return n;
+  }
+
+  function makeClickBtn(c) {
+    var n = el('div', null, 'arp-ctl arp-click arp-hit', esc(c.label || (c.btn === 2 ? 'Kanan' : 'Kiri')));
+    var pid = null;
+    n.addEventListener('pointerdown', function (e) {
+      if (editing) { startDrag(e, c, n); return; }
+      if (pid !== null) return;
+      pid = e.pointerId;
+      try { n.setPointerCapture(pid); } catch (x) {}
+      n.classList.add('on');
+      sendMouse('mousedown', c.btn || 0);
+      e.preventDefault();
+    });
+    function end(e) {
+      if (editing || e.pointerId !== pid) return;
+      pid = null;
+      n.classList.remove('on');
+      sendMouse('mouseup', c.btn || 0);
+      if (!c.btn) sendMouse('click', 0);
+    }
+    n.addEventListener('pointerup', end);
+    n.addEventListener('pointercancel', end);
+    n.addEventListener('lostpointercapture', end);
+    return n;
+  }
 
   function loadLayout() {
     var raw = '';
@@ -479,7 +585,13 @@
     if (raw) {
       try {
         var l = JSON.parse(raw);
-        if (Array.isArray(l) && l.length) return l;
+        if (Array.isArray(l) && l.length) {
+          // layout lama belum punya kontrol kursor, tambahkan
+          DEFAULT_LAYOUT.forEach(function (d) {
+            if (d.cursor && !l.some(function (c) { return c.id === d.id; })) l.push(JSON.parse(JSON.stringify(d)));
+          });
+          return l;
+        }
       } catch (e) {}
     }
     return JSON.parse(JSON.stringify(DEFAULT_LAYOUT));
@@ -501,18 +613,23 @@
   function place(c) {
     var n = nodes[c.id];
     if (!n) return;
-    var size = baseSize() * c.s * (c.type === 'stick' ? 2.1 : 1);
-    n.style.width = size + 'px';
-    n.style.height = size + 'px';
-    n.style.left = (c.x * window.innerWidth - size / 2) + 'px';
-    n.style.top = (c.y * window.innerHeight - size / 2) + 'px';
-    n.style.fontSize = Math.max(11, size * (String(c.label || '').length > 2 ? 0.25 : 0.38)) + 'px';
+    var u = baseSize() * c.s, w = u, h = u;
+    if (c.type === 'stick') { w = h = u * 2.1; }
+    else if (c.type === 'cpad') { w = u * 2.6; h = u * 1.8; }
+    else if (c.type === 'click') { w = u * 1.5; h = u * 0.9; }
+    n.style.width = w + 'px';
+    n.style.height = h + 'px';
+    n.style.left = (c.x * window.innerWidth - w / 2) + 'px';
+    n.style.top = (c.y * window.innerHeight - h / 2) + 'px';
+    var mn = Math.min(w, h);
+    n.style.fontSize = (c.type === 'cpad' ? Math.max(10, mn * 0.16)
+      : Math.max(11, mn * (String(c.label || '').length > 2 ? 0.3 : 0.38))) + 'px';
     if (n._thumb) {
-      var ts = size * 0.42;
+      var ts = w * 0.42;
       n._thumb.style.width = ts + 'px';
       n._thumb.style.height = ts + 'px';
-      n._thumb.style.left = ((size - ts) / 2 - 2) + 'px';
-      n._thumb.style.top = ((size - ts) / 2 - 2) + 'px';
+      n._thumb.style.left = ((w - ts) / 2 - 2) + 'px';
+      n._thumb.style.top = ((h - ts) / 2 - 2) + 'px';
     }
   }
 
@@ -634,18 +751,27 @@
     ctlLayer.innerHTML = '';
     nodes = {};
     layout.forEach(function (c) {
-      var n = c.type === 'stick' ? makeStick(c) : makeBtn(c);
+      var n = c.type === 'stick' ? makeStick(c) : (c.type === 'cpad' ? makeCursorPad(c) : (c.type === 'click' ? makeClickBtn(c) : makeBtn(c)));
       nodes[c.id] = n;
       ctlLayer.appendChild(n);
       place(c);
     });
     if (selId) select(selId);
+    applyCursorVis();
+  }
+
+  function applyCursorVis() {
+    layout.forEach(function (c) {
+      if (c.cursor && nodes[c.id]) nodes[c.id].style.display = (prefs.cursor || editing) ? '' : 'none';
+    });
+    cursorEl.style.display = prefs.cursor ? 'block' : 'none';
   }
 
   function applyPadPrefs() {
     ctlLayer.style.display = (prefs.gamepad || editing) ? 'block' : 'none';
     ctlLayer.style.opacity = editing ? 1 : prefs.opacity;
     if (!prefs.gamepad) applyDir({});
+    applyCursorVis();
   }
   window.addEventListener('resize', function () { layout.forEach(place); });
   buildControls();
@@ -843,7 +969,19 @@
       applyPadPrefs();
       renderPanel();
     }));
+    panel.appendChild(row('Mode kursor (seperti mouse)', prefs.cursor ? 'ON' : 'OFF', function () {
+      savePref('cursor', !prefs.cursor);
+      applyPadPrefs();
+      renderPanel();
+      toast(prefs.cursor ? 'Kursor aktif. Geser jari di kotak KURSOR, jari lain tap Kiri atau Kanan' : 'Kursor dimatikan');
+    }));
     panel.appendChild(row('Atur posisi dan ukuran tombol', '', enterEdit));
+    panel.appendChild(el('div', null, 'arp-title', 'KECEPATAN KURSOR'));
+    var cs = document.createElement('input');
+    cs.type = 'range'; cs.min = '0.6'; cs.max = '4'; cs.step = '0.1'; cs.value = prefs.cursorSpeed || 1.6;
+    cs.addEventListener('input', function () { prefs.cursorSpeed = parseFloat(cs.value); });
+    cs.addEventListener('change', function () { savePref('cursorSpeed', parseFloat(cs.value)); });
+    panel.appendChild(cs);
 
     panel.appendChild(el('div', null, 'arp-title', 'TRANSPARANSI TOMBOL'));
     var sl = document.createElement('input');
@@ -898,7 +1036,8 @@
 
 
   var cheat = { god: false, oneHit: false, noclip: false, noEncounter: false, noCost: false, keepItems: false,
-    bigStack: false, walkBonus: 0, gameSpeed: 1, expMul: 1, goldMul: 1 };
+    bigStack: false, walkBonus: 0, gameSpeed: 1, expMul: 1, goldMul: 1,
+    doubleAction: false, alwaysCrit: false, alwaysHit: false, infStats: false, dropMul: 1 };
   (function () {
     try {
       var cs = JSON.parse(N.getCheats() || '{}');
@@ -947,6 +1086,36 @@
     wrapM(Game_Party.prototype, 'maxItems', function (o, a) { return cheat.bigStack ? 9999 : o.apply(this, a); });
     wrapM(Game_Troop.prototype, 'expTotal', function (o, a) { return Math.floor(o.apply(this, a) * cheat.expMul); });
     wrapM(Game_Troop.prototype, 'goldTotal', function (o, a) { return Math.floor(o.apply(this, a) * cheat.goldMul); });
+    // aksi dua kali per giliran untuk anggota party
+    wrapM(Game_Battler.prototype, 'makeActionTimes', function (o, a) {
+      var n = o.apply(this, a);
+      return (cheat.doubleAction && this.isActor && this.isActor()) ? n + 1 : n;
+    });
+    // serangan party selalu critical dan selalu kena
+    wrapM(Game_Action.prototype, 'itemCri', function (o, a) {
+      if (cheat.alwaysCrit && this.subject() && this.subject().isActor()) return 1;
+      return o.apply(this, a);
+    });
+    wrapM(Game_Action.prototype, 'itemHit', function (o, a) {
+      if (cheat.alwaysHit && this.subject() && this.subject().isActor()) return 1;
+      return o.apply(this, a);
+    });
+    wrapM(Game_Action.prototype, 'itemEva', function (o, a) {
+      if (cheat.alwaysHit && this.subject() && this.subject().isActor()) return 0;
+      return o.apply(this, a);
+    });
+    // HP, MP, TP party penuh lagi di akhir tiap giliran
+    wrapM(Game_Battler.prototype, 'onTurnEnd', function (o, a) {
+      var r = o.apply(this, a);
+      if (cheat.infStats && this.isActor && this.isActor()) {
+        this.setHp(this.mhp); this.setMp(this.mmp); this.setTp(this.maxTp ? this.maxTp() : 100);
+      }
+      return r;
+    });
+    // peluang drop item
+    if (window.Game_Enemy) {
+      wrapM(Game_Enemy.prototype, 'dropItemRate', function (o, a) { return o.apply(this, a) * cheat.dropMul; });
+    }
     // kecepatan game: update scene diulang beberapa kali per frame
     var ou = SceneManager.updateScene;
     if (typeof ou === 'function') {
@@ -1056,7 +1225,33 @@
     var pr = el('div', null, 'ch-acts');
     pr.appendChild(mkBtn('Pulihkan semua anggota', function () { $gameParty.members().forEach(function (m) { m.recoverAll(); }); toast('Party pulih penuh'); }));
     pr.appendChild(mkBtn('Isi TP penuh', function () { $gameParty.members().forEach(function (m) { m.setTp(m.maxTp ? m.maxTp() : 100); }); toast('TP penuh'); }));
+    pr.appendChild(mkBtn('Level maksimal semua', function () {
+      $gameParty.members().forEach(function (m) { m.changeLevel(m.maxLevel(), false); });
+      toast('Semua anggota level maksimal');
+    }));
+    pr.appendChild(mkBtn('Stat besar semua (9999)', function () {
+      $gameParty.members().forEach(function (m) {
+        for (var i = 0; i < 8; i++) m.addParam(i, (i < 2 ? 99999 : 9999) - m.param(i));
+        m.recoverAll();
+      });
+      toast('Stat semua anggota dinaikkan');
+    }));
+    pr.appendChild(mkBtn('Izinkan save dan menu', function () {
+      if ($gameSystem.enableSave) $gameSystem.enableSave();
+      if ($gameSystem.enableMenu) $gameSystem.enableMenu();
+      toast('Save dan menu diizinkan');
+    }));
     body.appendChild(pr);
+
+    var stepsRow = el('div', null, 'ch-field');
+    stepsRow.appendChild(el('span', null, 'ch-fl', 'Langkah'));
+    var stepsIn = numBox($gameParty.steps ? $gameParty.steps() : 0);
+    stepsRow.appendChild(stepsIn);
+    stepsRow.appendChild(mkBtn('Set', function () {
+      var v = Math.floor(Number(stepsIn.value));
+      if (!isNaN(v) && v >= 0) { $gameParty._steps = v; toast('Jumlah langkah diubah'); }
+    }));
+    body.appendChild(stepsRow);
 
     section(body, 'BATTLE');
     var br = el('div', null, 'ch-acts');
@@ -1080,10 +1275,15 @@
     toggleRow(body, 'Skill tanpa biaya MP/TP', 'noCost');
     toggleRow(body, 'Item tidak berkurang saat dipakai', 'keepItems');
     toggleRow(body, 'Batas item 9999', 'bigStack');
+    toggleRow(body, 'Aksi dua kali per giliran', 'doubleAction');
+    toggleRow(body, 'Serangan selalu critical', 'alwaysCrit');
+    toggleRow(body, 'Serangan selalu kena (tidak meleset)', 'alwaysHit');
+    toggleRow(body, 'HP, MP, TP penuh tiap giliran', 'infStats');
     cycleRow(body, 'Kecepatan jalan', 'walkBonus', [0, 1, 2, 3], function (v) { return v === 0 ? 'Normal' : '+' + v; });
     cycleRow(body, 'Kecepatan game', 'gameSpeed', [1, 2, 3, 5], function (v) { return v + 'x'; });
     cycleRow(body, 'Pengali EXP', 'expMul', [1, 2, 5, 10, 50], function (v) { return v + 'x'; });
     cycleRow(body, 'Pengali Gold dari musuh', 'goldMul', [1, 2, 5, 10, 50], function (v) { return v + 'x'; });
+    cycleRow(body, 'Peluang drop item musuh', 'dropMul', [1, 2, 5, 100], function (v) { return v >= 100 ? 'Selalu drop' : v + 'x'; });
   }
 
   // daftar dengan pencarian dan halaman
@@ -1139,9 +1339,24 @@
     upd();
     return r;
   }
-  function tabItems(body) { listTab(body, validData(window.$dataItems), itemRow); }
-  function tabWeapons(body) { listTab(body, validData(window.$dataWeapons), itemRow); }
-  function tabArmors(body) { listTab(body, validData(window.$dataArmors), itemRow); }
+  function bulkTab(body, arr) {
+    var r = el('div', null, 'ch-acts');
+    r.appendChild(mkBtn('Beri semua \u00d799', function () {
+      arr.forEach(function (i) { $gameParty.gainItem(i, 99 - $gameParty.numItems(i), false); });
+      toast('Semua diisi 99');
+      renderCheat();
+    }, 'on'));
+    r.appendChild(mkBtn('Kosongkan semua', function () {
+      arr.forEach(function (i) { $gameParty.gainItem(i, -$gameParty.numItems(i), false); });
+      toast('Semua dikosongkan');
+      renderCheat();
+    }, 'del'));
+    body.appendChild(r);
+    listTab(body, arr, itemRow);
+  }
+  function tabItems(body) { bulkTab(body, validData(window.$dataItems)); }
+  function tabWeapons(body) { bulkTab(body, validData(window.$dataWeapons)); }
+  function tabArmors(body) { bulkTab(body, validData(window.$dataArmors)); }
 
   function allCheck(body) {
     var r = el('div', null, 'ch-acts');
@@ -1248,6 +1463,81 @@
     field('TP', function () { return actor.tp; }, function (v) { actor.setTp(Math.max(0, v)); });
     ['MHP', 'MMP', 'ATK', 'DEF', 'MAT', 'MDF', 'AGI', 'LUK'].forEach(function (n, i) {
       field(n, function () { return actor.param(i); }, function (v) { actor.addParam(i, v - actor.param(i)); });
+    });
+
+    section(body, 'NAMA DAN KELAS');
+    var nameRow = el('div', null, 'ch-field');
+    nameRow.appendChild(el('span', null, 'ch-fl', 'Nama'));
+    var nameIn = document.createElement('input');
+    nameIn.type = 'text'; nameIn.className = 'ch-in'; nameIn.style.width = '160px'; nameIn.value = actor.name();
+    nameRow.appendChild(nameIn);
+    nameRow.appendChild(mkBtn('Set', function () { actor.setName(nameIn.value); toast('Nama diubah'); renderCheat(); }));
+    body.appendChild(nameRow);
+
+    var classes = validData(window.$dataClasses);
+    if (classes.length) {
+      var csel = document.createElement('select');
+      csel.className = 'ch-search';
+      classes.forEach(function (c) {
+        var o = document.createElement('option');
+        o.value = String(c.id); o.textContent = '#' + c.id + ' ' + c.name;
+        csel.appendChild(o);
+      });
+      try { csel.value = String(actor.currentClass().id); } catch (e) {}
+      body.appendChild(csel);
+      var cacts = el('div', null, 'ch-acts');
+      cacts.appendChild(mkBtn('Ganti kelas (EXP dipertahankan)', function () {
+        actor.changeClass(parseInt(csel.value, 10), true);
+        toast('Kelas diganti');
+        renderCheat();
+      }));
+      body.appendChild(cacts);
+    }
+
+    if (actor.equipSlots) {
+      section(body, 'EQUIP');
+      var eslots = actor.equipSlots(), equips = actor.equips();
+      eslots.forEach(function (etype, idx) {
+        var cands = etype === 1 ? validData(window.$dataWeapons)
+          : validData(window.$dataArmors).filter(function (a) { return a.etypeId === etype; });
+        var er = el('div', null, 'ch-field');
+        er.appendChild(el('span', null, 'ch-fl', 'Slot ' + (idx + 1)));
+        var esel = document.createElement('select');
+        esel.className = 'ch-in'; esel.style.width = '210px';
+        var none = document.createElement('option');
+        none.value = '0'; none.textContent = '(kosong)';
+        esel.appendChild(none);
+        cands.forEach(function (c) {
+          var o = document.createElement('option');
+          o.value = String(c.id); o.textContent = '#' + c.id + ' ' + c.name;
+          esel.appendChild(o);
+        });
+        esel.value = equips[idx] ? String(equips[idx].id) : '0';
+        er.appendChild(esel);
+        er.appendChild(mkBtn('Pasang', function () {
+          var id = parseInt(esel.value, 10);
+          var obj = id ? (etype === 1 ? $dataWeapons[id] : $dataArmors[id]) : null;
+          actor.forceChangeEquip(idx, obj);
+          toast('Equip diganti');
+          renderCheat();
+        }));
+        body.appendChild(er);
+      });
+    }
+
+    section(body, 'STATE');
+    listTab(body, validData(window.$dataStates), function (st) {
+      var r = el('div', null, 'ch-item');
+      r.appendChild(el('div', null, 'ch-name', '<span class="ch-id">#' + st.id + '</span> ' + esc(st.name)));
+      var b = el('button', null, 'ch-btn', '');
+      function upd() { var v = actor.isStateAffected(st.id); b.textContent = v ? 'Aktif' : 'Tidak aktif'; b.className = 'ch-btn' + (v ? ' on' : ''); }
+      b.addEventListener('click', function () {
+        if (actor.isStateAffected(st.id)) actor.removeState(st.id); else actor.addState(st.id);
+        upd();
+      });
+      upd();
+      r.appendChild(b);
+      return r;
     });
 
     section(body, 'SKILL');
