@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../services/native_bridge.dart';
 import '../services/settings_store.dart';
 import 'debug_screen.dart';
 
@@ -171,6 +172,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             style: TextStyle(fontSize: 12, color: muted),
           ),
           const Divider(height: 32),
+          const Text('Penyimpanan', style: TextStyle(fontWeight: FontWeight.w700)),
+          const _AllFilesTile(),
+          const Divider(height: 32),
           const Text('Pemecahan masalah', style: TextStyle(fontWeight: FontWeight.w700)),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
@@ -189,6 +193,53 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _AllFilesTile extends StatefulWidget {
+  const _AllFilesTile();
+  @override
+  State<_AllFilesTile> createState() => _AllFilesTileState();
+}
+
+class _AllFilesTileState extends State<_AllFilesTile> with WidgetsBindingObserver {
+  bool? _ok;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _check();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _check();
+  }
+
+  Future<void> _check() async {
+    final v = await NativeBridge.hasAllFilesAccess();
+    if (mounted) setState(() => _ok = v);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ok = _ok == true;
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: Icon(ok ? Icons.check_circle : Icons.folder_open, color: ok ? Colors.green : null),
+      title: const Text('Akses semua file'),
+      subtitle: Text(ok
+          ? 'Aktif. Save game disimpan di folder yang tetap ada walau app dihapus.'
+          : 'Belum aktif. Dibutuhkan supaya save bertahan setelah app dihapus, dan untuk mode Tanpa salin.'),
+      trailing: ok ? null : TextButton(onPressed: NativeBridge.requestAllFilesAccess, child: const Text('Izinkan')),
     );
   }
 }
