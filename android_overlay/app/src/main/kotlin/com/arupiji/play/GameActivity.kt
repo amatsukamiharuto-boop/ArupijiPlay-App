@@ -7,9 +7,11 @@ import android.content.SharedPreferences
 import android.graphics.Color
 import android.net.Uri
 import android.os.Build
+import android.os.Environment
 import android.os.Bundle
 import android.os.Process
 import android.system.Os
+import android.util.Base64
 import android.util.Log
 import android.view.View
 import android.view.ViewGroup
@@ -144,6 +146,40 @@ class GameActivity : Activity() {
         DebugLog.add(applicationContext, "I", "Game", "Membuka $gameTitle ($path)")
         web.loadUrl(Uri.fromFile(index).toString())
     }
+
+    /** Nama stabil untuk folder save (tidak berubah walau game ditambahkan ulang atau diganti judul). */
+    private fun stableGameName(): String {
+        var t = ""
+        try {
+            t = JSONObject(File(gamePath, "data/System.json").readText().removePrefix("\uFEFF")).optString("gameTitle")
+        } catch (_: Exception) {
+        }
+        if (t.isBlank()) t = gameTitle
+        return t.replace(Regex("[^A-Za-z0-9._ -]+"), "_").trim().ifBlank { "game" }.take(60)
+    }
+
+    /**
+     * Lokasi save:
+     * 1. Game di folder asli (mode Tanpa salin): <folder game>/save, sama seperti versi PC. Bertahan walau app dihapus.
+     * 2. Game salinan di dalam app: kalau ada izin Akses semua file, disimpan di /ArupijiPlay/saves/<judul>
+     *    supaya bertahan setelah uninstal. Kalau tidak ada izin, di <folder game>/save di dalam app.
+     */
+    private val saveDir: File by lazy {
+        val local = File(gamePath, "save")
+        val inApp = gamePath.startsWith(filesDir.absolutePath)
+        var dir = local
+        if (inApp && GameImporter.hasAllFilesAccess(this)) {
+            try {
+                val shared = File(Environment.getExternalStorageDirectory(), "ArupijiPlay/saves/" + stableGameName())
+                if (shared.exists() || shared.mkdirs()) dir = shared
+            } catch (_: Exception) {
+            }
+        }
+        dir.mkdirs()
+        dir
+    }
+
+    private fun saveFile(name: String) = File(saveDir, File(name).name)
 
     /** Folder ekspor save: Android/data/<app>/files/saves/<judul game> */
     private fun exportDir(): File {
@@ -289,6 +325,48 @@ class GameActivity : Activity() {
         fun setCheats(json: String) {
             gp.edit().putString("cheats", json).apply()
         }
+
+        @JavascriptInterface
+        fun saveWrite(name: String, data: String, base64: Boolean): Boolean = try {
+            val f = saveFile(name)
+            f.parentFile?.mkdirs()
+            val tmp = File(f.parentFile, f.name + ".tmp")
+            if (base64) tmp.writeBytes(Base64.decode(data, Base64.DEFAULT)) else tmp.writeText(data)
+            if (f.exists()) f.delete()
+            tmp.renameTo(f) || run { tmp.copyTo(f, true); tmp.delete(); true }
+        } catch (e: Exception) {
+            DebugLog.add(applicationContext, "E", "Save", e.stackTraceToString())
+            false
+        }
+
+        @JavascriptInterface
+        fun saveRead(name: String, base64: Boolean): String = try {
+            val f = saveFile(name)
+            when {
+                !f.exists() -> ""
+                base64 -> Base64.encodeToString(f.readBytes(), Base64.NO_WRAP)
+                else -> f.readText()
+            }
+        } catch (_: Exception) {
+            ""
+        }
+
+        @JavascriptInterface
+        fun saveExists(name: String): Boolean = try {
+            saveFile(name).exists()
+        } catch (_: Exception) {
+            false
+        }
+
+        @JavascriptInterface
+        fun saveDelete(name: String): Boolean = try {
+            saveFile(name).delete()
+        } catch (_: Exception) {
+            false
+        }
+
+        @JavascriptInterface
+        fun saveDirPath(): String = saveDir.absolutePath
 
         @JavascriptInterface
         fun savePatch(json: String): Boolean = try {
