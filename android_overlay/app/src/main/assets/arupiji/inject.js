@@ -51,6 +51,117 @@
   }
   hookAudio();
 
+  /* ---------- save ke file di folder game ---------- */
+
+  // Save RPG Maker dialihkan dari penyimpanan browser ke file save/ di folder game,
+  // dengan nama dan isi yang sama seperti versi PC. Kalau gagal, otomatis kembali ke cara lama.
+  function u8ToB64(u8) {
+    var s = '';
+    for (var i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000));
+    return btoa(s);
+  }
+  function b64ToU8(b64) {
+    var bin = atob(b64), out = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  }
+  function refreshTitleWindow() {
+    try {
+      var sc = window.SceneManager && SceneManager._scene;
+      if (sc && sc._commandWindow && sc._commandWindow.refresh) sc._commandWindow.refresh();
+    } catch (e) {}
+  }
+  function reloadAfterStorage(isMZ) {
+    try {
+      if (window.ConfigManager && ConfigManager.load) {
+        var r = ConfigManager.load();
+        if (r && r.catch) r.catch(function () {});
+      }
+    } catch (e) {}
+    try {
+      if (isMZ && window.DataManager && DataManager.loadGlobalInfo) {
+        var g = DataManager.loadGlobalInfo();
+        if (g && g.then) g.then(refreshTitleWindow, function () {});
+      }
+    } catch (e) {}
+  }
+  function installStorage() {
+    var SM = window.StorageManager;
+    if (!SM || SM.__arpStore || !window.ArupijiNative || !N.saveWrite) return false;
+
+    // RPG Maker MV: isi file = LZString base64, sama dengan file .rpgsave versi PC
+    if (SM.saveToWebStorage && SM.loadFromWebStorage && window.LZString) {
+      SM.__arpStore = true;
+      var o = { save: SM.saveToWebStorage, load: SM.loadFromWebStorage, exists: SM.webStorageExists, remove: SM.removeWebStorage };
+      var fname = function (id) { return id < 0 ? 'config.rpgsave' : (id === 0 ? 'global.rpgsave' : 'file' + id + '.rpgsave'); };
+      SM.saveToWebStorage = function (id, json) {
+        var ok = false;
+        try { ok = N.saveWrite(fname(id), LZString.compressToBase64(json), false); } catch (e) {}
+        if (!ok) { nlog('W', 'Save ke file gagal, memakai penyimpanan browser'); o.save.call(this, id, json); }
+      };
+      SM.loadFromWebStorage = function (id) {
+        var data = '';
+        try { data = N.saveRead(fname(id), false); } catch (e) {}
+        if (data) return LZString.decompressFromBase64(data);
+        return o.load.call(this, id);
+      };
+      SM.webStorageExists = function (id) {
+        try { if (N.saveExists(fname(id))) return true; } catch (e) {}
+        return o.exists.call(this, id);
+      };
+      SM.removeWebStorage = function (id) {
+        try { N.saveDelete(fname(id)); } catch (e) {}
+        return o.remove.call(this, id);
+      };
+      // pindahkan save lama dari penyimpanan browser ke file (sekali saja)
+      try {
+        var keys = [];
+        for (var i = 0; i < localStorage.length; i++) keys.push(localStorage.key(i));
+        keys.forEach(function (k) {
+          var m = /^RPG (Config|Global|File(\d+))$/.exec(k);
+          if (!m) return;
+          var name = m[1] === 'Config' ? 'config.rpgsave' : (m[1] === 'Global' ? 'global.rpgsave' : 'file' + m[2] + '.rpgsave');
+          if (!N.saveExists(name)) { var v = localStorage.getItem(k); if (v) N.saveWrite(name, v, false); }
+        });
+      } catch (e) { nlog('W', 'Migrasi save lama: ' + e); }
+      reloadAfterStorage(false);
+      return true;
+    }
+
+    // RPG Maker MZ: isi file = data zip (pako), disimpan sebagai berkas biner .rmmzsave
+    if (SM.saveZip && SM.loadZip) {
+      SM.__arpStore = true;
+      var z = { save: SM.saveZip, load: SM.loadZip, exists: SM.exists, remove: SM.remove };
+      var zname = function (n) { return String(n).replace(/[^A-Za-z0-9._-]/g, '_') + '.rmmzsave'; };
+      SM.saveZip = function (saveName, zip) {
+        var self = this;
+        return new Promise(function (resolve, reject) {
+          var ok = false;
+          try { ok = N.saveWrite(zname(saveName), u8ToB64(new Uint8Array(zip.buffer ? zip.buffer : zip, zip.byteOffset || 0, zip.byteLength)), true); } catch (e) {}
+          if (ok) resolve(); else z.save.call(self, saveName, zip).then(resolve, reject);
+        });
+      };
+      SM.loadZip = function (saveName) {
+        var b64 = '';
+        try { b64 = N.saveRead(zname(saveName), true); } catch (e) {}
+        if (b64) return Promise.resolve(b64ToU8(b64));
+        return z.load.call(this, saveName);
+      };
+      SM.exists = function (saveName) {
+        try { if (N.saveExists(zname(saveName))) return true; } catch (e) {}
+        return z.exists.call(this, saveName);
+      };
+      SM.remove = function (saveName) {
+        try { N.saveDelete(zname(saveName)); } catch (e) {}
+        return z.remove.call(this, saveName);
+      };
+      reloadAfterStorage(true);
+      return true;
+    }
+    return false;
+  }
+  installStorage();
+
   function hookLoadError() {
     if (!window.Graphics || !Graphics.printLoadingError || Graphics.__arpLE) return;
     Graphics.__arpLE = true;
@@ -456,6 +567,7 @@
     var a = hookMessages(), b = hookUI();
     hookLoadError();
     hookAudio();
+    installStorage();
     if ((a && b) || tries > 120) {
       clearInterval(hookTimer);
       try {
@@ -990,6 +1102,11 @@
     sl.addEventListener('change', function () { savePref('opacity', parseFloat(sl.value)); });
     panel.appendChild(sl);
 
+    panel.appendChild(row('Lokasi file save', '', function () {
+      var p = '';
+      try { p = N.saveDirPath(); } catch (e) {}
+      toast(p ? 'Save disimpan di: ' + p : 'Lokasi save tidak diketahui');
+    }));
     panel.appendChild(row('Cheat (mirip MTools)', '', function () { panel.style.display = 'none'; openCheat(); }));
     panel.appendChild(row('Edit terjemahan langsung', '', function () { panel.style.display = 'none'; openStudio(); }));
     panel.appendChild(row('Log dan error', jsErrors.length ? jsErrors.length + ' error' : '', function () { panel.style.display = 'none'; openLog(); }, true));
