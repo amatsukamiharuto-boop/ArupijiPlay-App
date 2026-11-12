@@ -1,4 +1,5 @@
 import 'package:flutter/services.dart';
+import '../config/features.dart';
 import '../models/game.dart';
 import 'settings_store.dart';
 
@@ -40,10 +41,19 @@ class NativeBridge {
       'model': s.model,
       'lang': s.targetLang,
       'glossary': s.glossary,
-      'translate': s.autoTranslate,
+      // terjemahan langsung dan debug disembunyikan dulu
+      'translate': Features.showTranslation && s.autoTranslate,
+      'debug': Features.showDebug && s.debug,
+      // semua ini diatur dari halaman Pengaturan
       'gamepad': s.gamepad,
       'opacity': s.opacity,
-      'debug': s.debug,
+      'cursor': s.cursorMode,
+      'cursorSpeed': s.cursorSpeed,
+      'cheat': s.cheat,
+      'fps': s.fps,
+      'btnScale': s.btnScale,
+      'appLang': s.appLang,
+      'resetControls': s.resetControls,
     });
   }
 
