@@ -1,6 +1,11 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import '../config/features.dart';
 import '../models/game.dart';
+import '../services/i18n.dart';
+import '../services/settings_store.dart';
 
 enum GameAction { studio, rename, delete }
 
@@ -18,6 +23,7 @@ class GameCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    context.watch<SettingsStore>();
     final scheme = Theme.of(context).colorScheme;
     final dark = Theme.of(context).brightness == Brightness.dark;
     return Material(
@@ -59,10 +65,11 @@ class GameCard extends StatelessWidget {
                       child: PopupMenuButton<GameAction>(
                         icon: const Icon(Icons.more_vert, size: 20, color: Colors.white),
                         onSelected: onAction,
-                        itemBuilder: (_) => const [
-                          PopupMenuItem(value: GameAction.studio, child: Text('Terjemahan offline')),
-                          PopupMenuItem(value: GameAction.rename, child: Text('Ubah judul')),
-                          PopupMenuItem(value: GameAction.delete, child: Text('Hapus dari pustaka')),
+                        itemBuilder: (_) => [
+                          if (Features.showTranslation)
+                            PopupMenuItem(value: GameAction.studio, child: Text(context.t('Terjemahan offline', 'Offline translation'))),
+                          PopupMenuItem(value: GameAction.rename, child: Text(context.t('Ubah judul', 'Rename'))),
+                          PopupMenuItem(value: GameAction.delete, child: Text(context.t('Hapus dari pustaka', 'Remove from library'))),
                         ],
                       ),
                     ),
@@ -82,7 +89,7 @@ class GameCard extends StatelessWidget {
               child: FilledButton.icon(
                 onPressed: onPlay,
                 icon: const Icon(Icons.play_arrow_rounded, size: 20),
-                label: const Text('Main'),
+                label: Text(context.t('Main', 'Play')),
                 style: FilledButton.styleFrom(
                   minimumSize: const Size.fromHeight(36),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
