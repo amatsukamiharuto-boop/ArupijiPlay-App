@@ -20,6 +20,19 @@ class SettingsStore extends ChangeNotifier {
   bool get gamepad => _p.getBool('gamepad') ?? true;
   double get opacity => _p.getDouble('opacity') ?? 0.55;
 
+  /// Cheat, kursor, FPS, bahasa, dan ukuran tombol
+  bool get cheat => _p.getBool('cheat') ?? true;
+  bool get cursorMode => _p.getBool('cursorMode') ?? false;
+  double get cursorSpeed => _p.getDouble('cursorSpeed') ?? 1.6;
+  bool get fps => _p.getBool('fps') ?? false;
+  double get btnScale => _p.getDouble('btnScale') ?? 1.0;
+
+  /// id atau en (bahasa tampilan aplikasi, bukan bahasa game)
+  String get appLang => _p.getString('appLang') ?? 'id';
+
+  /// Kalau true, posisi tombol dikembalikan ke bawaan saat game dibuka berikutnya.
+  bool get resetControls => _p.getBool('resetControls') ?? false;
+
   /// system, light, atau dark
   String get themeMode => _p.getString('themeMode') ?? 'system';
   bool get debug => _p.getBool('debug') ?? false;
@@ -64,6 +77,41 @@ class SettingsStore extends ChangeNotifier {
 
   Future<void> setThemeMode(String v) async {
     await _p.setString('themeMode', v);
+    notifyListeners();
+  }
+
+  Future<void> setCheat(bool v) async {
+    await _p.setBool('cheat', v);
+    notifyListeners();
+  }
+
+  Future<void> setCursorMode(bool v) async {
+    await _p.setBool('cursorMode', v);
+    notifyListeners();
+  }
+
+  Future<void> setCursorSpeed(double v) async {
+    await _p.setDouble('cursorSpeed', v);
+    notifyListeners();
+  }
+
+  Future<void> setFps(bool v) async {
+    await _p.setBool('fps', v);
+    notifyListeners();
+  }
+
+  Future<void> setBtnScale(double v) async {
+    await _p.setDouble('btnScale', v);
+    notifyListeners();
+  }
+
+  Future<void> setAppLang(String v) async {
+    await _p.setString('appLang', v);
+    notifyListeners();
+  }
+
+  Future<void> setResetControls(bool v) async {
+    await _p.setBool('resetControls', v);
     notifyListeners();
   }
 
