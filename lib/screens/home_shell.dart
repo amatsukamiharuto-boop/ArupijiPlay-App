@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import '../services/i18n.dart';
+import '../services/settings_store.dart';
 import 'about_screen.dart';
 import 'library_screen.dart';
 import 'settings_screen.dart';
@@ -15,6 +19,7 @@ class _HomeShellState extends State<HomeShell> {
 
   @override
   Widget build(BuildContext context) {
+    context.watch<SettingsStore>();
     return Scaffold(
       body: IndexedStack(index: _index, children: const [
         LibraryScreen(),
@@ -25,11 +30,20 @@ class _HomeShellState extends State<HomeShell> {
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
         onDestinationSelected: (i) => setState(() => _index = i),
-        destinations: const [
-          NavigationDestination(icon: Icon(Icons.sports_esports_outlined), selectedIcon: Icon(Icons.sports_esports), label: 'Pustaka'),
-          NavigationDestination(icon: Icon(Icons.tune), label: 'Pengaturan'),
-          NavigationDestination(icon: Icon(Icons.favorite_border), selectedIcon: Icon(Icons.favorite), label: 'Dukung'),
-          NavigationDestination(icon: Icon(Icons.info_outline), selectedIcon: Icon(Icons.info), label: 'Tentang'),
+        destinations: [
+          NavigationDestination(
+              icon: const Icon(Icons.sports_esports_outlined),
+              selectedIcon: const Icon(Icons.sports_esports),
+              label: context.t('Pustaka', 'Library')),
+          NavigationDestination(icon: const Icon(Icons.tune), label: context.t('Pengaturan', 'Settings')),
+          NavigationDestination(
+              icon: const Icon(Icons.favorite_border),
+              selectedIcon: const Icon(Icons.favorite),
+              label: context.t('Dukung', 'Support')),
+          NavigationDestination(
+              icon: const Icon(Icons.info_outline),
+              selectedIcon: const Icon(Icons.info),
+              label: context.t('Tentang', 'About')),
         ],
       ),
     );
