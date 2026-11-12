@@ -169,6 +169,13 @@ class MainActivity : FlutterActivity() {
             putExtra("gamepad", (a["gamepad"] as? Boolean) ?: true)
             putExtra("debug", a.b("debug"))
             putExtra("opacity", ((a["opacity"] as? Number)?.toFloat()) ?: 0.55f)
+            putExtra("cursor", a.b("cursor"))
+            putExtra("cursorSpeed", ((a["cursorSpeed"] as? Number)?.toFloat()) ?: 1.6f)
+            putExtra("cheat", (a["cheat"] as? Boolean) ?: true)
+            putExtra("fps", a.b("fps"))
+            putExtra("btnScale", ((a["btnScale"] as? Number)?.toFloat()) ?: 1f)
+            putExtra("appLang", a.s("appLang").ifEmpty { "id" })
+            putExtra("resetControls", a.b("resetControls"))
         }
         startActivity(i)
     }
