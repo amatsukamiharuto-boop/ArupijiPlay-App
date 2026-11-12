@@ -47,6 +47,12 @@ class GameActivity : Activity() {
     private var defTranslate = false
     private var defGamepad = true
     private var defOpacity = 0.55f
+    private var defCursor = false
+    private var defCursorSpeed = 1.6f
+    private var defCheat = true
+    private var defFps = false
+    private var defBtnScale = 1f
+    private var appLang = "id"
     private var hasKey = false
     private var debug = false
     private var gamePath = ""
@@ -106,6 +112,15 @@ class GameActivity : Activity() {
         defGamepad = intent.getBooleanExtra("gamepad", true)
         defOpacity = intent.getFloatExtra("opacity", 0.55f)
         debug = intent.getBooleanExtra("debug", false)
+        defCursor = intent.getBooleanExtra("cursor", false)
+        defCursorSpeed = intent.getFloatExtra("cursorSpeed", 1.6f)
+        defCheat = intent.getBooleanExtra("cheat", true)
+        defFps = intent.getBooleanExtra("fps", false)
+        defBtnScale = intent.getFloatExtra("btnScale", 1f)
+        appLang = intent.getStringExtra("appLang") ?: "id"
+        if (intent.getBooleanExtra("resetControls", false)) {
+            getSharedPreferences("controls", Context.MODE_PRIVATE).edit().remove("layout").apply()
+        }
         lang = intent.getStringExtra("lang") ?: "Indonesian"
 
         val cfg = AiConfig(
@@ -297,16 +312,21 @@ class GameActivity : Activity() {
     inner class Bridge {
         @JavascriptInterface
         fun getPrefs(): String = JSONObject()
-            .put("translate", gp.getBoolean("translate", defTranslate))
-            .put("gamepad", gp.getBoolean("gamepad", defGamepad))
-            .put("opacity", gp.getFloat("opacity", defOpacity).toDouble())
+            // semua ini diatur dari halaman Pengaturan launcher dan dikirim saat game dibuka
+            .put("translate", defTranslate)
+            .put("gamepad", defGamepad)
+            .put("opacity", defOpacity.toDouble())
+            .put("cursor", defCursor)
+            .put("cursorSpeed", defCursorSpeed.toDouble())
+            .put("cheat", defCheat)
+            .put("fps", defFps)
+            .put("btnScale", defBtnScale.toDouble())
+            .put("appLang", appLang)
             .put("hasKey", hasKey)
             .put("lang", lang)
             .put("title", gameTitle)
             .put("debug", debug)
             .put("audioExt", audioExt)
-            .put("cursor", gp.getBoolean("cursor", false))
-            .put("cursorSpeed", gp.getFloat("cursorSpeed", 1.6f).toDouble())
             .toString()
 
         @JavascriptInterface
