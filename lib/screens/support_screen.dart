@@ -2,7 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:provider/provider.dart';
+
 import '../config/app_info.dart';
+import '../services/i18n.dart';
+import '../services/settings_store.dart';
 
 class SupportScreen extends StatelessWidget {
   const SupportScreen({super.key});
@@ -20,12 +24,18 @@ class SupportScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final en = context.watch<SettingsStore>().appLang == 'en';
     return Scaffold(
-      appBar: AppBar(title: const Text('Dukung Developer')),
+      appBar: AppBar(title: Text(context.t('Dukung Developer', 'Support the Developer'))),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          const Text(AppInfo.dukungkami, style: TextStyle(height: 1.45)),
+          Text(
+            en
+                ? 'You can support us through the donation options below, as much as you are comfortable with. We never force anyone to donate, but if you are interested, please donate according to your ability.'
+                : AppInfo.dukungkami,
+            style: const TextStyle(height: 1.45),
+          ),
           const SizedBox(height: 16),
           for (final d in AppInfo.donations)
             Card(
@@ -37,12 +47,12 @@ class SupportScreen extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     IconButton(
-                      tooltip: 'Tampilkan QR',
+                      tooltip: context.t('Tampilkan QR', 'Show QR'),
                       icon: const Icon(Icons.qr_code_2),
                       onPressed: () => _showQr(context, d.name, d.url),
                     ),
                     IconButton(
-                      tooltip: 'Buka link',
+                      tooltip: context.t('Buka link', 'Open link'),
                       icon: const Icon(Icons.open_in_new),
                       onPressed: () => launchUrl(Uri.parse(d.url), mode: LaunchMode.externalApplication),
                     ),
@@ -61,7 +71,7 @@ class SupportScreen extends StatelessWidget {
                     children: [
                       const Text('QRIS', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
                       const SizedBox(height: 4),
-                      const Text('Scan lewat m-banking atau e-wallet apa saja'),
+                      Text(context.t('Scan lewat m-banking atau e-wallet apa saja', 'Scan with any banking or e-wallet app')),
                       const SizedBox(height: 12),
                       ClipRRect(
                         borderRadius: BorderRadius.circular(10),
@@ -95,7 +105,7 @@ class SupportScreen extends StatelessWidget {
             SelectableText(url, style: const TextStyle(fontSize: 12)),
           ],
         ),
-        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Tutup'))],
+        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: Text(ctx.t('Tutup', 'Close')))],
       ),
     );
   }
