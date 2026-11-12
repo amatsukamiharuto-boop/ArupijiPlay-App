@@ -14,7 +14,7 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: '21'
 
       - uses: subosito/flutter-action@v2
         with:
@@ -25,6 +25,9 @@ jobs:
         run: bash tools/setup_android.sh
 
       - run: flutter pub get
+
+      - name: Pasang ikon app
+        run: dart run flutter_launcher_icons
 
       # --no-shrink wajib, kalau tidak R8 membuang method JavascriptInterface
       - run: flutter build apk --release --no-shrink
