@@ -6,6 +6,17 @@ import 'game_db.dart';
 import 'native_bridge.dart';
 import 'settings_store.dart';
 
+class AddResult {
+  const AddResult.ok(this.title, this.engine) : error = null;
+  const AddResult.fail(this.error)
+      : title = null,
+        engine = null;
+  final String? title;
+  final String? engine;
+  final String? error;
+  bool get isOk => error == null;
+}
+
 class LibraryStore extends ChangeNotifier {
   LibraryStore(this._db);
   final GameDb _db;
@@ -13,8 +24,13 @@ class LibraryStore extends ChangeNotifier {
   List<Game> games = [];
   bool busy = false;
 
-  /// Keterangan proses tambah game. progress null = belum diketahui.
-  String importText = '';
+  // Kemajuan menambah game (diformat di layar supaya mengikuti bahasa aplikasi)
+  bool importWaiting = true;
+  String importPhase = '';
+  int importDoneMb = 0;
+  int importTotalMb = 0;
+  int importDoneFiles = 0;
+  int importTotalFiles = 0;
   double? importProgress;
   bool canCancel = false;
   Timer? _poll;
@@ -32,27 +48,23 @@ class LibraryStore extends ChangeNotifier {
     });
   }
 
-  String _mb(num bytes) => (bytes / 1048576).toStringAsFixed(0);
-
   Future<void> _pollOnce() async {
     try {
       final st = await NativeBridge.importStatus();
       if (st['running'] != true) {
-        importText = 'Menunggu pilihan folder...';
+        importWaiting = true;
         importProgress = null;
         canCancel = false;
       } else {
+        importWaiting = false;
         final total = (st['totalBytes'] as num?) ?? 0;
         final done = (st['doneBytes'] as num?) ?? 0;
-        final files = (st['totalFiles'] as num?)?.toInt() ?? 0;
-        final doneFiles = (st['doneFiles'] as num?)?.toInt() ?? 0;
-        if (total > 0) {
-          importProgress = (done / total).clamp(0.0, 1.0).toDouble();
-          importText = '${st['phase']}  ${_mb(done)} dari ${_mb(total)} MB  ($doneFiles/$files file)';
-        } else {
-          importProgress = null;
-          importText = '${st['phase']}';
-        }
+        importPhase = '${st['phase']}';
+        importTotalFiles = (st['totalFiles'] as num?)?.toInt() ?? 0;
+        importDoneFiles = (st['doneFiles'] as num?)?.toInt() ?? 0;
+        importDoneMb = (done / 1048576).round();
+        importTotalMb = (total / 1048576).round();
+        importProgress = total > 0 ? (done / total).clamp(0.0, 1.0).toDouble() : null;
         canCancel = true;
       }
       notifyListeners();
@@ -61,10 +73,10 @@ class LibraryStore extends ChangeNotifier {
 
   Future<void> cancelImport() => NativeBridge.importCancel();
 
-  /// Balikin pesan untuk ditampilkan, atau null kalau dibatalkan.
-  Future<String?> addGame({bool link = false}) async {
+  /// Null kalau pengguna membatalkan.
+  Future<AddResult?> addGame({bool link = false}) async {
     busy = true;
-    importText = 'Menunggu pilihan folder...';
+    importWaiting = true;
     importProgress = null;
     canCancel = false;
     notifyListeners();
@@ -82,9 +94,9 @@ class LibraryStore extends ChangeNotifier {
       );
       await _db.insert(game);
       await refresh();
-      return '${game.title} ditambahkan (${game.engine})';
+      return AddResult.ok(game.title, game.engine);
     } on PlatformException catch (e) {
-      return 'Gagal menambah game: ${e.message}';
+      return AddResult.fail(e.message ?? '');
     } finally {
       _poll?.cancel();
       busy = false;
@@ -95,6 +107,7 @@ class LibraryStore extends ChangeNotifier {
 
   Future<void> play(Game g, SettingsStore s) async {
     await NativeBridge.launchGame(g, s);
+    if (s.resetControls) await s.setResetControls(false);
     g.lastPlayed = DateTime.now().millisecondsSinceEpoch;
     await _db.update(g);
     _sort();
