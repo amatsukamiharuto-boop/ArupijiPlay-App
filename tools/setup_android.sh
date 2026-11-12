@@ -95,4 +95,40 @@ grep -n "minSdk\|namespace\|applicationId" "$GRADLE" || true
 if ! grep -q "minSdk = 26" "$GRADLE"; then
   echo "PERINGATAN: minSdk belum terpasang 26, cek isi $GRADLE" >&2
 fi
+
+# Matikan tugas lint saat build rilis. Lint tidak mempengaruhi isi APK, dan versi lint
+# yang terbaru sering crash di plugin pihak ketiga (NoSuchMethodError List.removeLast).
+ROOT_GRADLE=""
+if [ -f android/build.gradle.kts ]; then ROOT_GRADLE="android/build.gradle.kts"; elif [ -f android/build.gradle ]; then ROOT_GRADLE="android/build.gradle"; fi
+if [ -n "$ROOT_GRADLE" ] && ! grep -q "arupiji-nolint" "$ROOT_GRADLE"; then
+  case "$ROOT_GRADLE" in
+    *.kts)
+      cat >> "$ROOT_GRADLE" <<'KTS'
+
+// arupiji-nolint
+subprojects {
+    tasks.configureEach {
+        if (name.startsWith("lintVital") || name.startsWith("lintAnalyze") || name.startsWith("lintReport")) {
+            enabled = false
+        }
+    }
+}
+KTS
+      ;;
+    *)
+      cat >> "$ROOT_GRADLE" <<'GROOVY'
+
+// arupiji-nolint
+subprojects {
+    tasks.configureEach { t ->
+        if (t.name.startsWith('lintVital') || t.name.startsWith('lintAnalyze') || t.name.startsWith('lintReport')) {
+            t.enabled = false
+        }
+    }
+}
+GROOVY
+      ;;
+  esac
+fi
+
 echo "Selesai."
