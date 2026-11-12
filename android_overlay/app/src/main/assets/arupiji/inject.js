@@ -8,7 +8,8 @@
   window.__arupijiLoaded = true;
 
   var N = window.ArupijiNative;
-  var prefs = { translate: false, gamepad: true, opacity: 0.55, hasKey: false, lang: 'Indonesian', title: '', debug: false, cursor: false, cursorSpeed: 1.6, audioExt: '' };
+  var prefs = { translate: false, gamepad: true, opacity: 0.55, hasKey: false, lang: 'Indonesian', title: '', debug: false, cursor: false, cursorSpeed: 1.6, audioExt: '',
+    cheat: true, fps: false, appLang: 'id', btnScale: 1 };
   try { prefs = JSON.parse(N.getPrefs()); } catch (e) {}
 
   function savePref(k, v) {
@@ -227,8 +228,8 @@
     '.arp-modal .acts{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}',
     '.arp-modal button{padding:9px 16px;border-radius:8px;border:0;font-size:14px;background:#2a3442;color:#fff}',
     '.arp-modal button.pri{background:#5bb8f0;color:#06222f;font-weight:700}',
-    '.arp-cpad{border-radius:18px;background:rgba(255,255,255,.08);font-size:12px;letter-spacing:1px}',
-    '.arp-click{border-radius:14px}',
+    '#arp-cursor-layer{position:absolute;left:0;top:0;right:0;bottom:0;pointer-events:auto;touch-action:none;display:none}',
+    '#arp-fps{position:absolute;top:calc(6px + env(safe-area-inset-top,0px));right:calc(10px + env(safe-area-inset-right,0px));padding:2px 7px;border-radius:8px;background:rgba(0,0,0,.55);font:700 12px monospace;display:none;pointer-events:none}',
     '#arp-cursor{position:absolute;left:0;top:0;width:24px;height:24px;margin:-2px 0 0 -3px;pointer-events:none;display:none;z-index:5}',
     '.arp-log{font-family:monospace;font-size:11px;line-height:1.45;white-space:pre-wrap;word-break:break-all;background:#fff;color:#37474f;border-radius:8px;padding:8px;max-height:55vh;overflow:auto;touch-action:pan-y}',
     '.arp-log .e{color:#d50000;font-weight:700}.arp-log .w{color:#e65100}'
@@ -237,11 +238,111 @@
   st.textContent = css;
   document.head.appendChild(st);
 
+  /* ---------- bahasa tampilan overlay (id / en) ---------- */
+
+  var LANG = (prefs.appLang === 'en') ? 'en' : 'id';
+  var EN = {
+    'Atur posisi dan ukuran tombol': 'Edit button position and size',
+    'Cheat (mirip MTools)': 'Cheat',
+    'Keluar ke launcher': 'Exit to launcher',
+    'Geser tombol untuk memindah. Ukuran:': 'Drag a button to move it. Size:',
+    'Tambah': 'Add', 'Hapus': 'Delete', 'Reset': 'Reset', 'Selesai': 'Done', 'Batal': 'Cancel', 'Tutup': 'Close',
+    'Mode atur tombol: geser untuk memindah, atur ukuran lewat slider': 'Edit mode: drag to move, use the slider to resize',
+    'Tulisan tombol': 'Button label', 'Fungsi (tombol keyboard)': 'Function (keyboard key)',
+    'Tulisan di tombol, mis. D': 'Button label, e.g. D', 'Item / Inventory (shortcut)': 'Items / Inventory (shortcut)',
+    'Tombol ditambahkan. Geser ke tempat yang kamu mau': 'Button added. Drag it where you want',
+    '<b>Cheat</b> <span class="ch-sub">mirip MTools, hanya untuk game yang sedang berjalan</span>': '<b>Cheat</b> <span class="ch-sub">MTools-style, only for the running game</span>',
+    'Mulai game baru atau muat save dulu, baru cheat bisa dipakai': 'Start a new game or load a save first, then cheats work',
+    'Umum': 'General', 'Item': 'Items', 'Senjata': 'Weapons', 'Armor': 'Armor', 'Switch': 'Switches', 'Variabel': 'Variables',
+    'Aktor': 'Actors', 'Teleport': 'Teleport', 'Data': 'Data', 'Event': 'Events', 'Save': 'Save', 'Konsol': 'Console',
+    'GOLD': 'GOLD', 'Gold': 'Gold', 'PARTY': 'PARTY', 'BATTLE': 'BATTLE', 'CHEAT AKTIF': 'ACTIVE CHEATS',
+    'Set': 'Set', 'Max': 'Max', 'Salin': 'Copy', 'Muat': 'Load', 'Ekspor': 'Export', 'Edit': 'Edit', 'Jalankan': 'Run',
+    'Pulihkan semua anggota': 'Heal all members', 'Isi TP penuh': 'Fill TP', 'Party pulih penuh': 'Party fully healed', 'TP penuh': 'TP filled',
+    'Level maksimal semua': 'Max level for all', 'Semua anggota level maksimal': 'All members at max level',
+    'Stat besar semua (9999)': 'Big stats for all (9999)', 'Stat semua anggota dinaikkan': 'All members\' stats raised',
+    'Izinkan save dan menu': 'Allow save and menu', 'Save dan menu diizinkan': 'Save and menu allowed', 'Langkah': 'Steps',
+    'Jumlah langkah diubah': 'Step count changed',
+    'Bunuh semua musuh': 'Kill all enemies', 'Kabur dari battle': 'Escape battle',
+    'Hanya bisa saat sedang battle': 'Only works during a battle', 'Semua musuh dikalahkan': 'All enemies defeated',
+    'Kebal (HP party tidak berkurang)': 'Invincible (party HP does not drop)', 'Sekali pukul (musuh langsung mati)': 'One-hit kill',
+    'Tembus tembok': 'Walk through walls', 'Tanpa pertemuan musuh': 'No random encounters', 'Skill tanpa biaya MP/TP': 'Skills cost no MP/TP',
+    'Item tidak berkurang saat dipakai': 'Items are not consumed', 'Batas item 9999': 'Item limit 9999',
+    'Aksi dua kali per giliran': 'Double action per turn', 'Serangan selalu critical': 'Attacks always critical',
+    'Serangan selalu kena (tidak meleset)': 'Attacks always hit', 'HP, MP, TP penuh tiap giliran': 'HP, MP, TP full every turn',
+    'Kecepatan jalan': 'Walk speed', 'Kecepatan game': 'Game speed', 'Pengali EXP': 'EXP multiplier',
+    'Pengali Gold dari musuh': 'Enemy gold multiplier', 'Peluang drop item musuh': 'Enemy item drop chance',
+    'Normal': 'Normal', 'Selalu drop': 'Always drop',
+    'Cari nama atau ID': 'Search name or ID', 'Beri semua \u00d799': 'Give all \u00d799', 'Kosongkan semua': 'Clear all',
+    'Semua diisi 99': 'All set to 99', 'Semua dikosongkan': 'All cleared',
+    'Hanya yang punya nama': 'Named only', 'Tampilkan semua (termasuk tanpa nama): ON': 'Show all (including unnamed): ON',
+    '(tanpa nama)': '(unnamed)',
+    'Level': 'Level', 'EXP': 'EXP', 'HP': 'HP', 'MP': 'MP', 'TP': 'TP',
+    'Pulihkan penuh': 'Heal fully', 'Level maksimal': 'Max level', 'Keluarkan dari party': 'Remove from party', 'Masukkan ke party': 'Add to party',
+    'NAMA DAN KELAS': 'NAME AND CLASS', 'Nama': 'Name', 'Nama diubah': 'Name changed', 'Ganti kelas (EXP dipertahankan)': 'Change class (keep EXP)',
+    'Kelas diganti': 'Class changed', 'EQUIP': 'EQUIP', 'Pasang': 'Equip', 'Equip diganti': 'Equipment changed', 'STATE': 'STATES',
+    'Aktif': 'Active', 'Tidak aktif': 'Inactive', 'SKILL': 'SKILLS', 'Pelajari semua skill': 'Learn all skills',
+    'Semua skill dipelajari': 'All skills learned', 'Dipelajari': 'Learned', 'Belum': 'Not yet',
+    'Tidak ada data aktor.': 'No actor data.', 'Aktor tidak tersedia.': 'Actor unavailable.',
+    'POSISI SEKARANG': 'CURRENT POSITION', 'PINDAH KE': 'MOVE TO', 'Pindah sekarang': 'Move now',
+    'Tidak bisa pindah saat battle': 'Cannot move during battle', 'Peta belum dimuat.': 'Map not loaded yet.',
+    'Pilih entri lalu ubah isinya. Perubahan langsung berlaku di game yang sedang jalan. ': 'Pick an entry and edit it. Changes apply immediately in the running game. ',
+    'Tekan Simpan permanen supaya tetap ada setelah game ditutup (file asli dicadangkan).': 'Press Save permanently to keep changes after the game closes (the original file is backed up).',
+    'Simpan semua permanen': 'Save all permanently', 'Hapus semua perubahan permanen': 'Remove all permanent changes',
+    'Simpan permanen entri ini': 'Save this entry permanently', '< Kembali ke daftar': '< Back to list',
+    'Diubah, langsung berlaku di game': 'Changed, applied in game now', 'Tersimpan permanen': 'Saved permanently',
+    'Belum ada perubahan': 'No changes yet', 'Belum ada perubahan data untuk disimpan': 'No data changes to save',
+    'Gagal menyimpan': 'Failed to save', 'Isi dengan angka': 'Enter a number', 'Format JSON tidak valid': 'Invalid JSON format',
+    'Semua isi harus angka, pisahkan dengan koma': 'All values must be numbers, separated by commas',
+    'Data dikembalikan ke asli. Mulai ulang game agar berlaku. Terapkan ulang terjemahan dari Studio bila perlu.': 'Data restored to original. Restart the game to apply.',
+    'Gagal mengembalikan data': 'Failed to restore data', 'Entri tidak ditemukan.': 'Entry not found.',
+    'Nama': 'Name', 'Deskripsi': 'Description', 'Harga': 'Price', 'Habis setelah dipakai': 'Consumed on use', 'Sasaran': 'Scope',
+    'Kapan bisa dipakai': 'Usable when', 'Kecepatan': 'Speed', 'Peluang berhasil': 'Success rate', 'Pengulangan': 'Repeats',
+    'TP didapat': 'TP gain', 'Rumus damage': 'Damage formula', 'Variasi damage': 'Damage variance', 'Bisa critical': 'Can crit',
+    'Elemen': 'Element', 'Biaya MP': 'MP cost', 'Biaya TP': 'TP cost', 'EXP dari musuh': 'EXP from enemy', 'Gold dari musuh': 'Gold from enemy',
+    'Catatan': 'Notes', 'Tipe senjata': 'Weapon type', 'Tipe armor': 'Armor type', 'Tipe slot equip': 'Equip slot type',
+    'Tipe item (2 = key item)': 'Item type (2 = key item)', 'Level awal': 'Initial level', 'Julukan': 'Nickname', 'Profil': 'Profile',
+    'Efek (JSON)': 'Effects (JSON)', 'Sifat (JSON)': 'Traits (JSON)', 'Drop item (JSON)': 'Drop items (JSON)',
+    'Aksi musuh (JSON)': 'Enemy actions (JSON)', 'Skill per level (JSON)': 'Skills per level (JSON)', 'Parameter EXP': 'EXP parameters',
+    'Stat [MHP, MMP, ATK, DEF, MAT, MDF, AGI, LUK]': 'Stats [MHP, MMP, ATK, DEF, MAT, MDF, AGI, LUK]',
+    'Tipe damage (0 tidak ada, 1 HP, 2 MP, 3 serap HP, 4 serap MP, 5 dan 6 pulih)': 'Damage type (0 none, 1 HP, 2 MP, 3 drain HP, 4 drain MP, 5 and 6 recover)',
+    'Musuh': 'Enemies', 'Kelas': 'Classes',
+    'Jalankan, pindahkan, atau hapus event. Hapus dan pindah biasa hanya berlaku sampai peta dimuat ulang. ': 'Run, move, or delete events. Normal delete and move last until the map reloads. ',
+    'Tombol permanen menulis perubahan ke file peta.': 'Permanent buttons write the change to the map file.',
+    'EVENT UMUM': 'COMMON EVENTS', 'Ke sana': 'Go there', 'Tarik ke depanku': 'Pull in front of me', 'Simpan posisi': 'Save position',
+    'Hapus permanen': 'Delete permanently', 'Event dipindah ke depanmu': 'Event moved in front of you', 'Event dihapus sementara': 'Event deleted for now',
+    'Event dihapus permanen': 'Event deleted permanently', 'Posisi disimpan permanen': 'Position saved permanently', 'Event dijalankan': 'Event started',
+    'Cara edit save: Muat slot, ubah isinya lewat tab Umum, Item, Aktor, Switch, Variabel, lalu Simpan ke slot. ': 'To edit a save: load a slot, change things with the General, Items, Actors, Switches, Variables tabs, then Save to slot. ',
+    'Simpan di sini tidak dibatasi menu game. File ekspor ada di folder Android/data/com.arupiji.play/files/saves.': 'Saving here ignores the game\'s menu limits. Exported files are in Android/data/com.arupiji.play/files/saves.',
+    'KONDISI SEKARANG': 'CURRENT STATE', 'Ekspor ke file': 'Export to file', 'SLOT SAVE': 'SAVE SLOTS', 'Simpan ke sini': 'Save here',
+    'IMPOR DARI FILE': 'IMPORT FROM FILE', 'Belum ada file ekspor.': 'No exported files yet.', 'Muat ke game': 'Load into game',
+    'File kosong atau tidak terbaca': 'File is empty or unreadable', 'File save tidak valid': 'Invalid save file',
+    'Save dimuat dari file. Simpan ke slot bila ingin menyimpannya.': 'Save loaded from file. Save to a slot to keep it.',
+    'Fitur save tidak tersedia di game ini.': 'Save features are not available in this game.',
+    'Gagal membaca slot': 'Failed to read slot', 'Gagal memuat slot': 'Failed to load slot', 'Gagal menghapus slot': 'Failed to delete slot',
+    'Gagal mengekspor': 'Failed to export', 'Gagal menulis file': 'Failed to write file',
+    'Jalankan JavaScript langsung di game. Contoh: $gameParty.gainGold(1000)  atau  $gameVariables.setValue(5, 10)  atau  $gameParty.leader().name()': 'Run JavaScript directly in the game. Example: $gameParty.gainGold(1000)  or  $gameVariables.setValue(5, 10)  or  $gameParty.leader().name()',
+    'Tulis kode di sini': 'Write code here', 'Hasil akan tampil di sini.': 'Results will appear here.', 'Bersihkan hasil': 'Clear results',
+    'Tab ini gagal dibuka: ': 'This tab failed to open: ',
+    '<span class="ch-sub">kosong</span>': '<span class="ch-sub">empty</span>',
+    'Disimpan: ': 'Saved: ', 'Tersimpan di slot ': 'Saved to slot ', 'Slot ': 'Slot ', 'Berpindah ke map #': 'Moved to map #',
+    ' dihapus': ' deleted', ' dimuat': ' loaded', ' entri disimpan permanen': ' entries saved permanently'
+  };
+  var EN_PREFIX = Object.keys(EN).filter(function (k) { return /[:#] $|#$| $/.test(k) && k.length > 3; });
+  function T(s) {
+    if (LANG !== 'en' || typeof s !== 'string') return s;
+    if (EN[s] !== undefined) return EN[s];
+    for (var i = 0; i < EN_PREFIX.length; i++) {
+      var k = EN_PREFIX[i];
+      if (s.indexOf(k) === 0 && EN[k] !== k) return EN[k] + s.slice(k.length);
+    }
+    return s;
+  }
+
   function el(tag, id, cls, html) {
     var e = document.createElement(tag);
     if (id) e.id = id;
     if (cls) e.className = cls;
-    if (html != null) e.innerHTML = html;
+    if (html != null) e.innerHTML = T(html);
     return e;
   }
 
@@ -283,7 +384,7 @@
   root.appendChild(toastEl);
   var toastTimer = null;
   function toast(msg) {
-    toastEl.textContent = msg;
+    toastEl.textContent = T(msg);
     toastEl.style.opacity = '1';
     clearTimeout(toastTimer);
     toastTimer = setTimeout(function () { toastEl.style.opacity = '0'; }, 2600);
@@ -594,22 +695,25 @@
     { id: 'e', type: 'key', label: 'E', code: 13, x: 0.91, y: 0.78, s: 1 },
     { id: 'x', type: 'key', label: 'X', code: 88, x: 0.80, y: 0.86, s: 1 },
     { id: 'shift', type: 'key', label: 'Shift', code: 16, x: 0.91, y: 0.54, s: 0.9 },
-    { id: 'i', type: 'action', action: 'inventory', label: 'I', x: 0.80, y: 0.62, s: 0.9 },
-    { id: 'cpad', type: 'cpad', cursor: true, x: 0.50, y: 0.70, s: 1.3 },
-    { id: 'cl', type: 'click', cursor: true, btn: 0, label: 'Kiri', x: 0.37, y: 0.88, s: 1 },
-    { id: 'cr', type: 'click', cursor: true, btn: 2, label: 'Kanan', x: 0.63, y: 0.88, s: 1 }
+    { id: 'i', type: 'action', action: 'inventory', label: 'I', x: 0.80, y: 0.62, s: 0.9 }
   ];
 
   /* ---------- kursor seperti mouse ---------- */
+  // Seluruh layar jadi touchpad: satu jari menggeser kursor di mana saja.
+  // Jari lain yang menyentuh bagian kiri layar = klik kiri, bagian kanan layar = klik kanan.
 
   var cur = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
   var heldMask = 0;
+  var cursorLayer = el('div', 'arp-cursor-layer');
+  root.appendChild(cursorLayer);
   var cursorEl = el('div', 'arp-cursor', null,
     '<svg viewBox="0 0 24 24" width="24" height="24"><path d="M3 2l16 9-7 2 4 8-3 1.5-4-8-5 5z" fill="#fff" stroke="#000" stroke-width="1.4" stroke-linejoin="round"/></svg>');
   root.appendChild(cursorEl);
 
+  function gameTarget() {
+    return document.getElementById('GameCanvas') || document.getElementById('gameCanvas') || document.querySelector('canvas') || document;
+  }
   function sendMouse(type, button) {
-    var target = document.elementFromPoint(cur.x, cur.y) || document.body;
     var bit = button === 2 ? 2 : 1;
     if (type === 'mousedown') heldMask |= bit;
     var ev;
@@ -617,7 +721,7 @@
       ev = new MouseEvent(type, { bubbles: true, cancelable: true, view: window, clientX: cur.x, clientY: cur.y,
         screenX: cur.x, screenY: cur.y, button: button, buttons: heldMask, detail: 1 });
     } catch (e) { return; }
-    target.dispatchEvent(ev);
+    gameTarget().dispatchEvent(ev);
     if (type === 'mouseup') heldMask &= ~bit;
   }
   function moveCursorTo(x, y) {
@@ -634,61 +738,45 @@
   cursorEl.style.left = cur.x + 'px';
   cursorEl.style.top = cur.y + 'px';
 
-  function makeCursorPad(c) {
-    var n = el('div', null, 'arp-ctl arp-cpad arp-hit', 'KURSOR');
-    var pid = null, lx = 0, ly = 0, t0 = 0, moved = 0;
-    n.addEventListener('pointerdown', function (e) {
-      if (editing) { startDrag(e, c, n); return; }
-      if (pid !== null) return;
-      pid = e.pointerId;
-      try { n.setPointerCapture(pid); } catch (x) {}
-      lx = e.clientX; ly = e.clientY; t0 = Date.now(); moved = 0;
-      n.classList.add('on');
-      e.preventDefault();
-    });
-    n.addEventListener('pointermove', function (e) {
-      if (editing || e.pointerId !== pid) return;
-      var dx = e.clientX - lx, dy = e.clientY - ly;
-      lx = e.clientX; ly = e.clientY;
-      moved += Math.abs(dx) + Math.abs(dy);
-      var sp = prefs.cursorSpeed || 1.6;
-      moveCursorTo(cur.x + dx * sp, cur.y + dy * sp);
-    });
-    function end(e) {
-      if (editing || e.pointerId !== pid) return;
-      pid = null;
-      n.classList.remove('on');
-      if (Date.now() - t0 < 220 && moved < 8) clickAt(0);   // ketuk cepat = klik kiri, seperti touchpad
+  var movePid = null, mlx = 0, mly = 0, mt0 = 0, mmoved = 0, extraBtn = {};
+  cursorLayer.addEventListener('pointerdown', function (e) {
+    if (!prefs.cursor || editing) return;
+    try { cursorLayer.setPointerCapture(e.pointerId); } catch (x) {}
+    if (movePid === null) {
+      movePid = e.pointerId; mlx = e.clientX; mly = e.clientY; mt0 = Date.now(); mmoved = 0;
+    } else {
+      var btn = e.clientX < window.innerWidth / 2 ? 0 : 2;   // sisi kiri layar = klik kiri, sisi kanan = klik kanan
+      extraBtn[e.pointerId] = btn;
+      sendMouse('mousedown', btn);
     }
-    n.addEventListener('pointerup', end);
-    n.addEventListener('pointercancel', end);
-    n.addEventListener('lostpointercapture', end);
-    return n;
+    e.preventDefault();
+  });
+  cursorLayer.addEventListener('pointermove', function (e) {
+    if (e.pointerId !== movePid) return;
+    var dx = e.clientX - mlx, dy = e.clientY - mly;
+    mlx = e.clientX; mly = e.clientY;
+    mmoved += Math.abs(dx) + Math.abs(dy);
+    var sp = prefs.cursorSpeed || 1.6;
+    moveCursorTo(cur.x + dx * sp, cur.y + dy * sp);
+  });
+  function cursorEnd(e) {
+    if (e.pointerId === movePid) {
+      movePid = null;
+      if (Date.now() - mt0 < 220 && mmoved < 8) clickAt(0);   // ketuk cepat satu jari = klik kiri
+    } else if (extraBtn[e.pointerId] !== undefined) {
+      var b = extraBtn[e.pointerId];
+      delete extraBtn[e.pointerId];
+      sendMouse('mouseup', b);
+      if (b === 0) sendMouse('click', 0);
+    }
   }
-
-  function makeClickBtn(c) {
-    var n = el('div', null, 'arp-ctl arp-click arp-hit', esc(c.label || (c.btn === 2 ? 'Kanan' : 'Kiri')));
-    var pid = null;
-    n.addEventListener('pointerdown', function (e) {
-      if (editing) { startDrag(e, c, n); return; }
-      if (pid !== null) return;
-      pid = e.pointerId;
-      try { n.setPointerCapture(pid); } catch (x) {}
-      n.classList.add('on');
-      sendMouse('mousedown', c.btn || 0);
-      e.preventDefault();
-    });
-    function end(e) {
-      if (editing || e.pointerId !== pid) return;
-      pid = null;
-      n.classList.remove('on');
-      sendMouse('mouseup', c.btn || 0);
-      if (!c.btn) sendMouse('click', 0);
-    }
-    n.addEventListener('pointerup', end);
-    n.addEventListener('pointercancel', end);
-    n.addEventListener('lostpointercapture', end);
-    return n;
+  cursorLayer.addEventListener('pointerup', cursorEnd);
+  cursorLayer.addEventListener('pointercancel', cursorEnd);
+  cursorLayer.addEventListener('lostpointercapture', cursorEnd);
+  function releaseCursor() {
+    movePid = null;
+    extraBtn = {};
+    if (heldMask) { sendMouse('mouseup', 0); sendMouse('mouseup', 2); heldMask = 0; }
   }
 
   function loadLayout() {
@@ -697,12 +785,10 @@
     if (raw) {
       try {
         var l = JSON.parse(raw);
-        if (Array.isArray(l) && l.length) {
-          // layout lama belum punya kontrol kursor, tambahkan
-          DEFAULT_LAYOUT.forEach(function (d) {
-            if (d.cursor && !l.some(function (c) { return c.id === d.id; })) l.push(JSON.parse(JSON.stringify(d)));
-          });
-          return l;
+        if (Array.isArray(l)) {
+          // kontrol kursor lama (kotak KURSOR, tombol Kiri dan Kanan) sudah diganti touchpad layar penuh
+          l = l.filter(function (c) { return c.type !== 'cpad' && c.type !== 'click'; });
+          if (l.length) return l;
         }
       } catch (e) {}
     }
@@ -720,7 +806,7 @@
     for (var i = 0; i < layout.length; i++) if (layout[i].id === id) return layout[i];
     return null;
   }
-  function baseSize() { return Math.max(42, Math.min(80, window.innerHeight / 360 * 60)); }
+  function baseSize() { return Math.max(38, Math.min(96, window.innerHeight / 360 * 60 * (prefs.btnScale || 1))); }
 
   function place(c) {
     var n = nodes[c.id];
@@ -863,7 +949,7 @@
     ctlLayer.innerHTML = '';
     nodes = {};
     layout.forEach(function (c) {
-      var n = c.type === 'stick' ? makeStick(c) : (c.type === 'cpad' ? makeCursorPad(c) : (c.type === 'click' ? makeClickBtn(c) : makeBtn(c)));
+      var n = c.type === 'stick' ? makeStick(c) : makeBtn(c);
       nodes[c.id] = n;
       ctlLayer.appendChild(n);
       place(c);
@@ -873,10 +959,10 @@
   }
 
   function applyCursorVis() {
-    layout.forEach(function (c) {
-      if (c.cursor && nodes[c.id]) nodes[c.id].style.display = (prefs.cursor || editing) ? '' : 'none';
-    });
-    cursorEl.style.display = prefs.cursor ? 'block' : 'none';
+    var on = !!prefs.cursor && !editing;
+    cursorLayer.style.display = on ? 'block' : 'none';
+    cursorEl.style.display = on ? 'block' : 'none';
+    if (!on) releaseCursor();
   }
 
   function applyPadPrefs() {
@@ -1045,6 +1131,25 @@
 
   /* ---------- menu overlay ---------- */
 
+  var fpsEl = el('div', 'arp-fps');
+  root.appendChild(fpsEl);
+  (function () {
+    if (!prefs.fps) return;
+    fpsEl.style.display = 'block';
+    var frames = 0, last = performance.now();
+    function loop(t) {
+      frames++;
+      if (t - last >= 500) {
+        var f = Math.round(frames * 1000 / (t - last));
+        fpsEl.textContent = f + ' FPS';
+        fpsEl.style.color = f >= 50 ? '#7ee787' : (f >= 30 ? '#ffd54f' : '#ff6b6b');
+        frames = 0; last = t;
+      }
+      requestAnimationFrame(loop);
+    }
+    requestAnimationFrame(loop);
+  })();
+
   var menuBtn = el('div', 'arp-menu-btn', 'arp-hit', '&#9776;');
   var badge = el('div', 'arp-badge');
   menuBtn.appendChild(badge);
@@ -1060,7 +1165,7 @@
   updateBadge();
 
   function row(label, tag, fn, red) {
-    var b = el('button', null, 'arp-row', '<span>' + label + '</span>' + (tag ? '<span class="arp-tag' + (red ? ' red' : '') + '">' + tag + '</span>' : ''));
+    var b = el('button', null, 'arp-row', '<span>' + T(label) + '</span>' + (tag ? '<span class="arp-tag' + (red ? ' red' : '') + '">' + tag + '</span>' : ''));
     b.addEventListener('click', fn);
     return b;
   }
@@ -1068,48 +1173,10 @@
   function renderPanel() {
     panel.innerHTML = '';
     panel.appendChild(el('div', null, 'arp-title', esc((prefs.title || 'GAME').toUpperCase())));
-
-    panel.appendChild(row('Terjemahan langsung (' + esc(prefs.lang) + ')', prefs.translate ? 'ON' : 'OFF', function () {
-      if (!prefs.translate && !prefs.hasKey) { toast('API key belum diisi di Pengaturan'); return; }
-      savePref('translate', !prefs.translate);
-      toast(prefs.translate ? 'Terjemahan aktif' : 'Terjemahan dimatikan');
-      scheduleRefresh();
-      renderPanel();
-    }));
-    panel.appendChild(row('Tombol di layar', prefs.gamepad ? 'ON' : 'OFF', function () {
-      savePref('gamepad', !prefs.gamepad);
-      applyPadPrefs();
-      renderPanel();
-    }));
-    panel.appendChild(row('Mode kursor (seperti mouse)', prefs.cursor ? 'ON' : 'OFF', function () {
-      savePref('cursor', !prefs.cursor);
-      applyPadPrefs();
-      renderPanel();
-      toast(prefs.cursor ? 'Kursor aktif. Geser jari di kotak KURSOR, jari lain tap Kiri atau Kanan' : 'Kursor dimatikan');
-    }));
     panel.appendChild(row('Atur posisi dan ukuran tombol', '', enterEdit));
-    panel.appendChild(el('div', null, 'arp-title', 'KECEPATAN KURSOR'));
-    var cs = document.createElement('input');
-    cs.type = 'range'; cs.min = '0.6'; cs.max = '4'; cs.step = '0.1'; cs.value = prefs.cursorSpeed || 1.6;
-    cs.addEventListener('input', function () { prefs.cursorSpeed = parseFloat(cs.value); });
-    cs.addEventListener('change', function () { savePref('cursorSpeed', parseFloat(cs.value)); });
-    panel.appendChild(cs);
-
-    panel.appendChild(el('div', null, 'arp-title', 'TRANSPARANSI TOMBOL'));
-    var sl = document.createElement('input');
-    sl.type = 'range'; sl.min = '0.15'; sl.max = '1'; sl.step = '0.05'; sl.value = prefs.opacity;
-    sl.addEventListener('input', function () { prefs.opacity = parseFloat(sl.value); applyPadPrefs(); });
-    sl.addEventListener('change', function () { savePref('opacity', parseFloat(sl.value)); });
-    panel.appendChild(sl);
-
-    panel.appendChild(row('Lokasi file save', '', function () {
-      var p = '';
-      try { p = N.saveDirPath(); } catch (e) {}
-      toast(p ? 'Save disimpan di: ' + p : 'Lokasi save tidak diketahui');
-    }));
-    panel.appendChild(row('Cheat (mirip MTools)', '', function () { panel.style.display = 'none'; openCheat(); }));
-    panel.appendChild(row('Edit terjemahan langsung', '', function () { panel.style.display = 'none'; openStudio(); }));
-    panel.appendChild(row('Log dan error', jsErrors.length ? jsErrors.length + ' error' : '', function () { panel.style.display = 'none'; openLog(); }, true));
+    if (prefs.cheat !== false) {
+      panel.appendChild(row('Cheat (mirip MTools)', '', function () { panel.style.display = 'none'; openCheat(); }));
+    }
     panel.appendChild(row('Keluar ke launcher', '', function () { N.exitGame(); }));
   }
 
@@ -1156,6 +1223,7 @@
     bigStack: false, walkBonus: 0, gameSpeed: 1, expMul: 1, goldMul: 1,
     doubleAction: false, alwaysCrit: false, alwaysHit: false, infStats: false, dropMul: 1 };
   (function () {
+    if (prefs.cheat === false) return;
     try {
       var cs = JSON.parse(N.getCheats() || '{}');
       Object.keys(cs).forEach(function (k) { if (k in cheat) cheat[k] = cs[k]; });
@@ -1170,6 +1238,7 @@
   }
 
   function hookCheats() {
+    if (prefs.cheat === false) return true;   // cheat dimatikan di Pengaturan, tidak ada yang dipasang
     if (!window.Game_Action || !window.Game_Player || !window.Game_Party || !window.Game_Troop ||
         !window.Game_Battler || !window.Game_BattlerBase || !window.SceneManager) return false;
     if (Game_Player.prototype.__arpCheat) return true;
@@ -1311,13 +1380,13 @@
   function section(body, title) { body.appendChild(el('div', null, 'ch-sec', title)); }
 
   function toggleRow(body, label, key) {
-    var b = el('button', null, 'ch-row', '<span>' + label + '</span><span class="ch-tag' + (cheat[key] ? ' on' : '') + '">' + (cheat[key] ? 'ON' : 'OFF') + '</span>');
+    var b = el('button', null, 'ch-row', '<span>' + T(label) + '</span><span class="ch-tag' + (cheat[key] ? ' on' : '') + '">' + (cheat[key] ? 'ON' : 'OFF') + '</span>');
     b.addEventListener('click', function () { cheat[key] = !cheat[key]; saveCheat(); renderCheat(); });
     body.appendChild(b);
   }
   function cycleRow(body, label, key, values, fmt) {
     var cur = fmt ? fmt(cheat[key]) : cheat[key];
-    var b = el('button', null, 'ch-row', '<span>' + label + '</span><span class="ch-tag on">' + cur + '</span>');
+    var b = el('button', null, 'ch-row', '<span>' + T(label) + '</span><span class="ch-tag on">' + cur + '</span>');
     b.addEventListener('click', function () {
       var i = values.indexOf(cheat[key]);
       cheat[key] = values[(i + 1) % values.length];
@@ -1408,7 +1477,7 @@
     var q = '', page = 0, per = 30;
     var bar = el('div', null, 'ch-bar');
     var inp = document.createElement('input');
-    inp.type = 'text'; inp.className = 'ch-search'; inp.placeholder = 'Cari nama atau ID';
+    inp.type = 'text'; inp.className = 'ch-search'; inp.placeholder = T('Cari nama atau ID');
     bar.appendChild(inp);
     var prev = mkBtn('<', function () { if (page > 0) { page--; draw(); } });
     var next = mkBtn('>', function () { page++; draw(); });
