@@ -61,6 +61,23 @@
     for (var i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000));
     return btoa(s);
   }
+  // MZ memberi data save berupa "binary string" (tiap karakter = satu byte), bukan Uint8Array.
+  function zipToB64(zip) {
+    var u8, i;
+    if (typeof zip === 'string') {
+      u8 = new Uint8Array(zip.length);
+      for (i = 0; i < zip.length; i++) u8[i] = zip.charCodeAt(i) & 255;
+    } else if (zip instanceof ArrayBuffer) {
+      u8 = new Uint8Array(zip);
+    } else if (zip && zip.buffer) {
+      u8 = new Uint8Array(zip.buffer, zip.byteOffset || 0, zip.byteLength);
+    } else if (Array.isArray(zip)) {
+      u8 = new Uint8Array(zip);
+    } else {
+      return '';
+    }
+    return u8.length ? u8ToB64(u8) : '';
+  }
   function b64ToU8(b64) {
     var bin = atob(b64), out = new Uint8Array(bin.length);
     for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
@@ -137,8 +154,13 @@
       SM.saveZip = function (saveName, zip) {
         var self = this;
         return new Promise(function (resolve, reject) {
-          var ok = false;
-          try { ok = N.saveWrite(zname(saveName), u8ToB64(new Uint8Array(zip.buffer ? zip.buffer : zip, zip.byteOffset || 0, zip.byteLength)), true); } catch (e) {}
+          var ok = false, b64 = '';
+          try {
+            b64 = zipToB64(zip);
+            if (b64) ok = N.saveWrite(zname(saveName), b64, true);
+          } catch (e) {}
+          if (!b64) nlog('W', 'Data save MZ kosong atau bentuknya tidak dikenal: ' + typeof zip);
+          // kalau file gagal ditulis, pakai penyimpanan browser supaya save tidak hilang
           if (ok) resolve(); else z.save.call(self, saveName, zip).then(resolve, reject);
         });
       };
