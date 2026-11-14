@@ -348,6 +348,8 @@ class GameActivity : Activity() {
 
         @JavascriptInterface
         fun saveWrite(name: String, data: String, base64: Boolean): Boolean = try {
+            // data kosong tidak boleh menimpa save (menghasilkan file 0 B), biarkan JS memakai cara lama
+            if (data.isEmpty()) throw IllegalArgumentException("data save kosong: $name")
             val f = saveFile(name)
             f.parentFile?.mkdirs()
             val tmp = File(f.parentFile, f.name + ".tmp")
@@ -373,7 +375,9 @@ class GameActivity : Activity() {
 
         @JavascriptInterface
         fun saveExists(name: String): Boolean = try {
-            saveFile(name).exists()
+            // file 0 B (sisa dari bug lama) dianggap tidak ada supaya tertimpa save yang benar
+            val f = saveFile(name)
+            f.exists() && f.length() > 0
         } catch (_: Exception) {
             false
         }
