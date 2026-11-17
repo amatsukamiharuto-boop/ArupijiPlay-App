@@ -5,6 +5,10 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# Dibutuhkan agar workflow boleh membuat Release
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -29,19 +33,27 @@ jobs:
       - name: Pasang ikon app
         run: dart run flutter_launcher_icons
 
-      # --no-shrink wajib agar R8 tidak membuang method JavascriptInterface
+      # --no-shrink wajib, kalau tidak R8 membuang method JavascriptInterface
       - run: flutter build apk --release --no-shrink
 
-      - name: Upload APK ke Pixeldrain
-        run: |
-          echo "Mengunggah file APK ke Pixeldrain..."
-          RESPONSE=$(curl -s -F file=@build/app/outputs/flutter-apk/app-release.apk https://pixeldrain.com/api/file/)
-          echo "Respon server: $RESPONSE"
-          
-          FILE_ID=$(echo $RESPONSE | grep -o '"id":"[^"]*' | head -n 1 | cut -d'"' -f4)
-          
-          echo ""
-          echo "===================================================="
-          echo "🎉 LINK DOWNLOAD PIXELDRAIN YANG BENAR:"
-          echo "https://pixeldrain.com/u/$FILE_ID"
-          echo "===================================================="
+      # APK dikirim ke halaman Releases. Ini tidak memakai kuota artifact Actions.
+      # Satu rilis bernama "latest" yang file APK-nya ditimpa tiap build.
+      - name: Unggah APK ke Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: ArupijiPlay terbaru (build ${{ github.run_number }})
+          body: "APK hasil build nomor ${{ github.run_number }}. Unduh file app-release.apk di bawah."
+          files: build/app/outputs/flutter-apk/app-release.apk
+          prerelease: true
+          overwrite_files: true
+
+      # Cadangan lewat artifact. Kalau kuota penuh, langkah ini boleh gagal tanpa menggagalkan build.
+      - name: Unggah artifact (cadangan)
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: ArupijiPlay-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 1
+          compression-level: 0
