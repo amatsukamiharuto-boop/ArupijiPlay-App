@@ -32,9 +32,14 @@ jobs:
       # --no-shrink wajib agar R8 tidak membuang method JavascriptInterface
       - run: flutter build apk --release --no-shrink
 
-      - name: Upload APK ke Bashupload
+      - name: Upload APK ke Pixeldrain
         run: |
-          echo "Mengunggah file APK mentah ke bashupload..."
-          curl -T build/app/outputs/flutter-apk/app-release.apk https://bashupload.com/ArupijiPlay-release.apk
+          echo "Mengunggah file APK ke Pixeldrain..."
+          # Mengunggah file ke API Pixeldrain dan menangkap respon JSON-nya
+          RESPONSE=$(curl -T build/app/outputs/flutter-apk/app-release.apk https://pixeldrain.com/api/file/ArupijiPlay-release.apk)
+          echo "Respon dari server: $RESPONSE"
           echo ""
-          echo "Selesai! Silakan copy link download yang muncul di atas."
+          echo "===================================================="
+          echo "🎉 LINK DOWNLOAD PIXELDRAIN ANDA:"
+          echo "https://pixeldrain.com/u/$(echo $RESPONSE | grep -o '"id":"[^"]*' | grep -o '[^"]*$')"
+          echo "===================================================="
