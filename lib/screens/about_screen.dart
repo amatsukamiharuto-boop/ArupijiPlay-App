@@ -37,29 +37,36 @@ class AboutScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          Row(
-            children: [
-              Container(
-                width: 56,
-                height: 56,
-                decoration: BoxDecoration(color: primary.withAlpha(40), borderRadius: BorderRadius.circular(14)),
-                child: Icon(Icons.sports_esports, color: primary, size: 30),
-              ),
-              const SizedBox(width: 14),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+          // Logo HITOYA Interactive. Taruh gambarnya di assets/images/hitoya_logo.png
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF6F6F6),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: theme.colorScheme.onSurface.withAlpha(30)),
+            ),
+            child: Image.asset(
+              'assets/images/hitoya_logo.png',
+              fit: BoxFit.contain,
+              errorBuilder: (_, __, ___) => const Column(
                 children: [
-                  const Text(AppInfo.appName, style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
-                  FutureBuilder<PackageInfo>(
-                    future: PackageInfo.fromPlatform(),
-                    builder: (_, s) => Text(
-                      s.hasData ? 'Versi ${s.data!.version}' : '',
-                      style: TextStyle(color: muted),
-                    ),
-                  ),
+                  Text('HITOYA Interactive',
+                      style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: Colors.black)),
+                  SizedBox(height: 4),
+                  Text("RPG Maker & Ren'py Launcher", style: TextStyle(color: Colors.black54)),
                 ],
               ),
-            ],
+            ),
+          ),
+          const SizedBox(height: 10),
+          Center(
+            child: FutureBuilder<PackageInfo>(
+              future: PackageInfo.fromPlatform(),
+              builder: (_, s) => Text(
+                s.hasData ? context.t('Versi ${s.data!.version}', 'Version ${s.data!.version}') : '',
+                style: TextStyle(color: muted),
+              ),
+            ),
           ),
           const SizedBox(height: 16),
           Text(
@@ -85,9 +92,12 @@ class AboutScreen extends StatelessWidget {
           const SizedBox(height: 14),
           Text('Developer', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
           const SizedBox(height: 6),
-          const Text(AppInfo.developerName, style: TextStyle(fontWeight: FontWeight.w600)),
+          const Text('HITOYA Interactive', style: TextStyle(fontWeight: FontWeight.w600)),
           const SizedBox(height: 2),
-          Text(en ? 'ArupijiPlay is an RPG Maker game launcher you can play on Android for free.' : AppInfo.appBio,
+          Text(
+              en
+                  ? 'A launcher for playing RPG Maker games on Android, free of charge.'
+                  : 'Aplikasi launcher untuk memainkan game RPG Maker di Android, gratis tanpa dipungut biaya.',
               style: const TextStyle(height: 1.35)),
           const SizedBox(height: 10),
           OutlinedButton.icon(
@@ -98,8 +108,8 @@ class AboutScreen extends StatelessWidget {
           const SizedBox(height: 22),
           Text(
             context.t(
-                'ArupijiPlay tidak menyertakan game apa pun. Pastikan kamu hanya memainkan game yang kamu miliki atau yang boleh kamu mainkan.',
-                'ArupijiPlay does not include any games. Make sure you only play games you own or are allowed to play.'),
+                'Aplikasi ini tidak menyertakan game apa pun. Pastikan kamu hanya memainkan game yang kamu miliki atau yang boleh kamu mainkan.',
+                'This app does not include any games. Make sure you only play games you own or are allowed to play.'),
             style: TextStyle(fontSize: 12, color: muted, height: 1.4),
           ),
         ],
