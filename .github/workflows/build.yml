@@ -32,9 +32,8 @@ jobs:
       # --no-shrink wajib, kalau tidak R8 membuang method JavascriptInterface
       - run: flutter build apk --release --no-shrink
 
-      - name: Kirim APK ke Discord
-        uses: tsickert/discord-action@v4
-        with:
-          webhook-url: ${{ secrets.DISCORD_WEBHOOK_URL }}
-          content: "🎉 **Build ArupijiPlay Berhasil!** Silakan download file APK-nya di bawah ini:"
-          filename: build/app/outputs/flutter-apk/app-release.apk
+      - name: Kirim APK ke Discord via Webhook
+        run: |
+          curl -F "file=@build/app/outputs/flutter-apk/app-release.apk" \
+               -F "content=🎉 **Build ArupijiPlay Berhasil!** File APK terbaru sudah siap didownload di bawah ini." \
+               "${{ secrets.DISCORD_WEBHOOK_URL }}"
