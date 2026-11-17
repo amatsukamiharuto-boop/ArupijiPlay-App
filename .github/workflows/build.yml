@@ -34,5 +34,6 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: ArupijiPlay-apk
+          name: ArupijiPlay-apk-v1.0.0
           path: build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 1
