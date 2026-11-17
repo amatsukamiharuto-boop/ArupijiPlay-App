@@ -347,7 +347,21 @@
     'Tab ini gagal dibuka: ': 'This tab failed to open: ',
     '<span class="ch-sub">kosong</span>': '<span class="ch-sub">empty</span>',
     'Disimpan: ': 'Saved: ', 'Tersimpan di slot ': 'Saved to slot ', 'Slot ': 'Slot ', 'Berpindah ke map #': 'Moved to map #',
-    ' dihapus': ' deleted', ' dimuat': ' loaded', ' entri disimpan permanen': ' entries saved permanently'
+    ' dihapus': ' deleted', ' dimuat': ' loaded', ' entri disimpan permanen': ' entries saved permanently',
+    'AKSES CEPAT': 'QUICK ACCESS', 'Buka Menu': 'Open Menu', 'Buka Save': 'Open Save', 'Buka Load': 'Open Load',
+    'Kembali ke Title': 'Back to Title', 'Tidak bisa dibuka saat battle': 'Cannot open during a battle',
+    'Gagal membuka layar': 'Failed to open the screen', 'Fix Crash': 'Fix Crash',
+    'Kalau game macet atau muncul layar Error, coba dari atas ke bawah. Kartu perbaikan juga muncul otomatis begitu game crash.': 'If the game freezes or shows an Error screen, try from top to bottom. A fix card also appears automatically when the game crashes.',
+    'ERROR TERAKHIR': 'LAST ERROR', 'PERBAIKI': 'FIX', 'Perbaiki otomatis': 'Auto fix',
+    'Lanjutkan game (hapus layar error)': 'Resume game (clear error screen)',
+    'Bersihkan event dan pesan yang macet': 'Clear stuck events and messages',
+    'Kembali ke peta': 'Back to map', 'Muat save terakhir': 'Load last save',
+    'Layar error dihapus, game dilanjutkan': 'Error screen cleared, game resumed',
+    'Event dan pesan yang macet dibersihkan': 'Stuck events and messages cleared',
+    'Peta tidak tersedia, pakai Kembali ke Title': 'Map unavailable, use Back to Title',
+    'Game mengalami crash': 'The game crashed', 'Perbaiki sekarang': 'Fix now', 'Abaikan': 'Ignore',
+    'Perbaikan dijalankan. Kalau masih error, coba Muat save terakhir atau Kembali ke Title': 'Fix applied. If it still errors, try Load last save or Back to Title',
+    'Perbaikan gagal, coba Kembali ke Title': 'Fix failed, try Back to Title'
   };
   var EN_PREFIX = Object.keys(EN).filter(function (k) { return /[:#] $|#$| $/.test(k) && k.length > 3; });
   function T(s) {
@@ -691,6 +705,7 @@
     hookLoadError();
     hookAudio();
     installStorage();
+    hookCrash();
     if ((a && b) || tries > 120) {
       clearInterval(hookTimer);
       try {
@@ -1350,7 +1365,7 @@
 
   var CH_TABS = [['Umum', 'general'], ['Item', 'items'], ['Senjata', 'weapons'], ['Armor', 'armors'],
     ['Switch', 'switches'], ['Variabel', 'vars'], ['Aktor', 'actors'], ['Teleport', 'tp'],
-    ['Data', 'data'], ['Event', 'event'], ['Save', 'save'], ['Konsol', 'console']];
+    ['Data', 'data'], ['Event', 'event'], ['Save', 'save'], ['Konsol', 'console'], ['Fix Crash', 'fix']];
   var chTab = 'general', chActor = 0, chShowAll = false;
 
   function gameReady() {
@@ -1392,7 +1407,7 @@
     try {
       ({ general: tabGeneral, items: tabItems, weapons: tabWeapons, armors: tabArmors,
         switches: tabSwitches, vars: tabVars, actors: tabActors, tp: tabTeleport,
-        data: tabData, event: tabEvents, save: tabSave, console: tabConsole })[chTab](body);
+        data: tabData, event: tabEvents, save: tabSave, console: tabConsole, fix: tabFix })[chTab](body);
     } catch (e) {
       nlog('E', 'Cheat: ' + (e && e.stack || e));
       body.appendChild(el('div', null, 'ch-sub', 'Tab ini gagal dibuka: ' + esc(e && e.message || e)));
@@ -1419,6 +1434,15 @@
   }
 
   function tabGeneral(body) {
+    section(body, 'AKSES CEPAT');
+    toggleRow(body, 'Tembus tembok', 'noclip');
+    var qa = el('div', null, 'ch-acts');
+    qa.appendChild(mkBtn('Buka Menu', function () { openScene('menu'); }));
+    qa.appendChild(mkBtn('Buka Save', function () { openScene('save'); }));
+    qa.appendChild(mkBtn('Buka Load', function () { openScene('load'); }));
+    qa.appendChild(mkBtn('Kembali ke Title', function () { openScene('title'); }, 'del'));
+    body.appendChild(qa);
+
     section(body, 'GOLD');
     var gold = numBox($gameParty.gold());
     var gr = el('div', null, 'ch-field');
@@ -1478,7 +1502,6 @@
     section(body, 'CHEAT AKTIF');
     toggleRow(body, 'Kebal (HP party tidak berkurang)', 'god');
     toggleRow(body, 'Sekali pukul (musuh langsung mati)', 'oneHit');
-    toggleRow(body, 'Tembus tembok', 'noclip');
     toggleRow(body, 'Tanpa pertemuan musuh', 'noEncounter');
     toggleRow(body, 'Skill tanpa biaya MP/TP', 'noCost');
     toggleRow(body, 'Item tidak berkurang saat dipakai', 'keepItems');
@@ -2207,6 +2230,159 @@
     body.appendChild(acts);
     body.appendChild(out);
     draw();
+  }
+
+  /* ---------- akses cepat dan perbaikan crash ---------- */
+
+  (function () {
+    var c = [
+      '.arp-crash{position:absolute;left:50%;bottom:calc(12px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);width:min(560px,94vw);',
+      'background:rgba(28,18,20,.97);border:2px solid #e53935;border-radius:14px;padding:12px;color:#fff;display:none;z-index:6}',
+      '.arp-crash .t{color:#ff6b6b;font-weight:700;font-size:14px;margin-bottom:6px}',
+      '.arp-crash .m{font-family:monospace;font-size:11px;color:#ffb4ab;word-break:break-all;max-height:64px;overflow:auto;margin-bottom:8px;touch-action:pan-y}',
+      '.arp-crash .a{display:flex;flex-wrap:wrap;gap:6px}',
+      '.arp-crash button{padding:8px 12px;border-radius:8px;border:0;background:#2a3442;color:#fff;font-size:12px}',
+      '.arp-crash button.pri{background:#e53935;font-weight:700}'
+    ].join('');
+    var s4 = document.createElement('style');
+    s4.textContent = c;
+    document.head.appendChild(s4);
+  })();
+
+  var lastCrash = '';
+
+  function eraseErrorUI() {
+    try { if (window.Graphics && Graphics.eraseError) Graphics.eraseError(); } catch (e) {}
+  }
+  // Setelah error, RPG Maker menghentikan loop game. Nyalakan lagi.
+  function resumeLoop() {
+    try { if (window.Graphics && Graphics.startGameLoop) Graphics.startGameLoop(); } catch (e) {}
+    try {
+      if (window.SceneManager) {
+        if ('_stopped' in SceneManager) SceneManager._stopped = false;
+        if (SceneManager.requestUpdate) SceneManager.requestUpdate();
+        if (SceneManager.resume) SceneManager.resume();
+      }
+    } catch (e) {}
+  }
+  // Penyebab macet yang paling umum: pesan, interpreter event, transfer peta, efek layar, atau battle yang menggantung.
+  function clearStuckState() {
+    try { if (window.$gameMessage) $gameMessage.clear(); } catch (e) {}
+    try { if (window.$gameMap && $gameMap._interpreter) $gameMap._interpreter.clear(); } catch (e) {}
+    try { if (window.$gameTemp && $gameTemp.clearCommonEvent) $gameTemp.clearCommonEvent(); } catch (e) {}
+    try { if (window.$gamePlayer && $gamePlayer.clearTransferInfo) $gamePlayer.clearTransferInfo(); } catch (e) {}
+    try { if (window.$gameScreen && $gameScreen.clear) $gameScreen.clear(); } catch (e) {}
+    try { if (window.$gameTimer && $gameTimer.stop) $gameTimer.stop(); } catch (e) {}
+    try { if (window.$gameParty && $gameParty.inBattle() && window.BattleManager) BattleManager.abort(); } catch (e) {}
+  }
+  function backToMap() {
+    try {
+      if (window.$gameMap && $gameMap.mapId && $gameMap.mapId() > 0 && window.Scene_Map) { SceneManager.goto(Scene_Map); return true; }
+    } catch (e) { nlog('E', 'Kembali ke peta: ' + e); }
+    return false;
+  }
+  function autoFix() {
+    eraseErrorUI();
+    clearStuckState();
+    resumeLoop();
+    var done = backToMap();
+    if (!done) {
+      try { if (window.Scene_Title) { SceneManager.goto(Scene_Title); done = true; } } catch (e) { nlog('E', 'Fix crash: ' + e); }
+    }
+    crashCard.style.display = 'none';
+    chModal.style.display = 'none';
+    toast(done ? 'Perbaikan dijalankan. Kalau masih error, coba Muat save terakhir atau Kembali ke Title' : 'Perbaikan gagal, coba Kembali ke Title');
+  }
+  function loadLastSave() {
+    eraseErrorUI();
+    clearStuckState();
+    resumeLoop();
+    var id = 1;
+    try { if (DataManager.latestSavefileId) id = DataManager.latestSavefileId(); } catch (e) {}
+    loadSlot(id);
+    crashCard.style.display = 'none';
+  }
+  function toTitle() {
+    eraseErrorUI();
+    clearStuckState();
+    resumeLoop();
+    try { if (window.AudioManager) AudioManager.stopAll(); } catch (e) {}
+    try { SceneManager.goto(Scene_Title); } catch (e) { nlog('E', 'Ke Title: ' + e); }
+    crashCard.style.display = 'none';
+    chModal.style.display = 'none';
+  }
+
+  var crashCard = el('div', 'arp-crash', 'arp-crash arp-hit');
+  root.appendChild(crashCard);
+  function crashBtn(text, fn, cls) {
+    var b = el('button', null, cls || null, text);
+    b.addEventListener('click', fn);
+    return b;
+  }
+  function showCrashCard(msg) {
+    crashCard.innerHTML = '';
+    crashCard.appendChild(el('div', null, 't', 'Game mengalami crash'));
+    crashCard.appendChild(el('div', null, 'm', esc(String(msg).slice(0, 220))));
+    var acts = el('div', null, 'a');
+    [crashBtn('Perbaiki sekarang', autoFix, 'pri'), crashBtn('Muat save terakhir', loadLastSave),
+      crashBtn('Kembali ke Title', toTitle), crashBtn('Abaikan', function () { crashCard.style.display = 'none'; })
+    ].forEach(function (b) { acts.appendChild(b); });
+    crashCard.appendChild(acts);
+    crashCard.style.display = 'block';
+  }
+
+  // Semua error yang ditangkap RPG Maker (termasuk dari plugin) lewat Graphics.printError
+  function hookCrash() {
+    if (prefs.cheat === false) return true;
+    if (!window.Graphics || !Graphics.printError || Graphics.__arpCrash) return !!(window.Graphics && Graphics.__arpCrash);
+    Graphics.__arpCrash = true;
+    var o = Graphics.printError;
+    Graphics.printError = function (name, message) {
+      var r = o.apply(this, arguments);
+      lastCrash = String(name) + ': ' + String(message);
+      nlog('E', 'Crash game: ' + lastCrash);
+      showCrashCard(lastCrash);
+      return r;
+    };
+    return true;
+  }
+  hookCrash();
+
+  function openScene(kind) {
+    try {
+      var battle = window.$gameParty && $gameParty.inBattle();
+      if ((kind === 'menu' || kind === 'save') && battle) { toast('Tidak bisa dibuka saat battle'); return; }
+      if (kind === 'menu') { if ($gameSystem.enableMenu) $gameSystem.enableMenu(); SceneManager.push(Scene_Menu); }
+      else if (kind === 'save') { if ($gameSystem.enableSave) $gameSystem.enableSave(); SceneManager.push(Scene_Save); }
+      else if (kind === 'load') { SceneManager.push(Scene_Load); }
+      else if (kind === 'title') {
+        if (window.AudioManager) { AudioManager.fadeOutBgm(1); AudioManager.fadeOutBgs(1); }
+        SceneManager.goto(Scene_Title);
+      }
+      chModal.style.display = 'none';
+    } catch (e) { nlog('E', 'Buka layar: ' + e); toast('Gagal membuka layar'); }
+  }
+
+  function tabFix(body) {
+    note(body, 'Kalau game macet atau muncul layar Error, coba dari atas ke bawah. Kartu perbaikan juga muncul otomatis begitu game crash.');
+    if (lastCrash) {
+      section(body, 'ERROR TERAKHIR');
+      body.appendChild(el('div', null, 'ch-log', '<div class="bad">' + esc(lastCrash) + '</div>'));
+    }
+    section(body, 'PERBAIKI');
+    var a = el('div', null, 'ch-acts');
+    a.appendChild(mkBtn('Perbaiki otomatis', autoFix, 'on'));
+    a.appendChild(mkBtn('Lanjutkan game (hapus layar error)', function () {
+      eraseErrorUI(); resumeLoop(); crashCard.style.display = 'none'; toast('Layar error dihapus, game dilanjutkan');
+    }));
+    a.appendChild(mkBtn('Bersihkan event dan pesan yang macet', function () { clearStuckState(); toast('Event dan pesan yang macet dibersihkan'); }));
+    a.appendChild(mkBtn('Kembali ke peta', function () {
+      eraseErrorUI(); clearStuckState(); resumeLoop();
+      if (backToMap()) { chModal.style.display = 'none'; toast('Kembali ke peta'); } else toast('Peta tidak tersedia, pakai Kembali ke Title');
+    }));
+    a.appendChild(mkBtn('Muat save terakhir', loadLastSave));
+    a.appendChild(mkBtn('Kembali ke Title', toTitle, 'del'));
+    body.appendChild(a);
   }
 
   /* ---------- edit studio ---------- */
