@@ -32,8 +32,9 @@ jobs:
       # --no-shrink wajib, kalau tidak R8 membuang method JavascriptInterface
       - run: flutter build apk --release --no-shrink
 
-      - uses: actions/upload-artifact@v4
+      - name: Kirim APK ke Discord
+        uses: tsickert/discord-action@v4
         with:
-          name: ArupijiPlay-apk-v1.0.0
-          path: build/app/outputs/flutter-apk/app-release.apk
-          retention-days: 1
+          webhook-url: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          content: "🎉 **Build ArupijiPlay Berhasil!** Silakan download file APK-nya di bawah ini:"
+          filename: build/app/outputs/flutter-apk/app-release.apk
