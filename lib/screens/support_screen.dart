@@ -13,6 +13,15 @@ class SupportScreen extends StatelessWidget {
 
   static const _qrisAsset = 'assets/images/qris.png';
 
+  /// Hanya dua pilihan: Trakteer (dalam negeri) dan Ko-fi (luar negeri).
+  static List<DonationLink> _shown() {
+    final keep = AppInfo.donations.where((d) {
+      final n = d.name.toLowerCase();
+      return n.contains('trakteer') || n.contains('ko-fi') || n.contains('kofi');
+    }).toList();
+    return keep.isEmpty ? AppInfo.donations.toList() : keep;
+  }
+
   Future<bool> _qrisExists() async {
     try {
       await rootBundle.load(_qrisAsset);
@@ -37,7 +46,7 @@ class SupportScreen extends StatelessWidget {
             style: const TextStyle(height: 1.45),
           ),
           const SizedBox(height: 16),
-          for (final d in AppInfo.donations)
+          for (final d in _shown())
             Card(
               margin: const EdgeInsets.only(bottom: 10),
               child: ListTile(
