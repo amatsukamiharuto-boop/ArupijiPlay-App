@@ -8,10 +8,10 @@ class DonationLink {
 /// Semua teks identitas dan link ada di sini. Ganti sesuai punyamu.
 class AppInfo {
   static const appName = 'ArupijiPlay';
-  static const developerName = 'Arupiji App';
+  static const developerName = 'HITOYA Interactive';
   static const appBio =
       'ArupijiPlay adalah aplikasi laucher game RPG Maker yang bisa dimainkan di android dengan gratis tanpa dipungut biaya.';
-  static const contactEmail = 'arupijiappdev@gmail.com';
+  static const contactEmail = 'hitoyainteractive@gmail.com';
 
   static const dukungkami =
       'Kalian bisa dukung kami lewat donasi sesuai dengan kemampuan kalian dibawah ini, dan kami tidak memaksa kalian untuk berdonasi, namun jika kalian tertarik untuk berdonasi silahkan berdonasi sesuai dengan kemampuan kalian';
