@@ -19,7 +19,7 @@ class AppInfo {
   static const donations = <DonationLink>[
     DonationLink('Trakteer', 'https://trakteer.id/Hitoya_Interactive', 'Traktir kopi lewat Trakteer'),
     DonationLink('Saweria', 'https://saweria.co/username', 'Dukung lewat Saweria'),
-    DonationLink('Ko-fi', 'https://ko-fi.com/username', 'Untuk dukungan dari luar negeri'),
+    DonationLink('Ko-fi', 'https://ko-fi.com/hitoyainteractive', 'Untuk dukungan dari luar negeri'),
   ];
 
   /// Taruh gambar QRIS di assets/images/qris.png, otomatis tampil kalau ada.
