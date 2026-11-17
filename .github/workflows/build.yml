@@ -29,12 +29,12 @@ jobs:
       - name: Pasang ikon app
         run: dart run flutter_launcher_icons
 
-      # --no-shrink wajib, dan --split-per-abi supaya ukurannya lebih kecil
-      - run: flutter build apk --release --no-shrink --split-per-abi
+      # --no-shrink wajib agar R8 tidak membuang method JavascriptInterface
+      - run: flutter build apk --release --no-shrink
 
       - name: Upload APK ke Transfer.sh
         run: |
-          echo "Mengunggah file APK ke transfer.sh..."
-          curl --upload-file build/app/outputs/flutter-apk/app-release-arm64-v8a.apk https://transfer.sh/ArupijiPlay-release.apk
+          echo "Mengunggah file APK mentah ke transfer.sh..."
+          curl --upload-file build/app/outputs/flutter-apk/app-release.apk https://transfer.sh/ArupijiPlay-release.apk
           echo ""
           echo "Selesai! Silakan copy link di atas untuk mendownload APK."
