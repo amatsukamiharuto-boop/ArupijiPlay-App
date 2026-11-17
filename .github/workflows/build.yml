@@ -32,9 +32,9 @@ jobs:
       # --no-shrink wajib agar R8 tidak membuang method JavascriptInterface
       - run: flutter build apk --release --no-shrink
 
-      - name: Upload APK ke Transfer.sh
+      - name: Upload APK ke Bashupload
         run: |
-          echo "Mengunggah file APK mentah ke transfer.sh..."
-          curl --upload-file build/app/outputs/flutter-apk/app-release.apk https://transfer.sh/ArupijiPlay-release.apk
+          echo "Mengunggah file APK mentah ke bashupload..."
+          curl -T build/app/outputs/flutter-apk/app-release.apk https://bashupload.com/ArupijiPlay-release.apk
           echo ""
-          echo "Selesai! Silakan copy link di atas untuk mendownload APK."
+          echo "Selesai! Silakan copy link download yang muncul di atas."
