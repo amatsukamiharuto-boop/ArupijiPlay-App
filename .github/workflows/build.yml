@@ -35,11 +35,13 @@ jobs:
       - name: Upload APK ke Pixeldrain
         run: |
           echo "Mengunggah file APK ke Pixeldrain..."
-          # Mengunggah file ke API Pixeldrain dan menangkap respon JSON-nya
-          RESPONSE=$(curl -T build/app/outputs/flutter-apk/app-release.apk https://pixeldrain.com/api/file/ArupijiPlay-release.apk)
-          echo "Respon dari server: $RESPONSE"
+          RESPONSE=$(curl -s -F file=@build/app/outputs/flutter-apk/app-release.apk https://pixeldrain.com/api/file/)
+          echo "Respon server: $RESPONSE"
+          
+          FILE_ID=$(echo $RESPONSE | grep -o '"id":"[^"]*' | head -n 1 | cut -d'"' -f4)
+          
           echo ""
           echo "===================================================="
-          echo "🎉 LINK DOWNLOAD PIXELDRAIN ANDA:"
-          echo "https://pixeldrain.com/u/$(echo $RESPONSE | grep -o '"id":"[^"]*' | grep -o '[^"]*$')"
+          echo "🎉 LINK DOWNLOAD PIXELDRAIN YANG BENAR:"
+          echo "https://pixeldrain.com/u/$FILE_ID"
           echo "===================================================="
