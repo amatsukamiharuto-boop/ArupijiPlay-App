@@ -25,6 +25,21 @@ class AboutScreen extends StatelessWidget {
     'Set buttons, cursor, cheat, FPS, language, and storage permission from the Settings page.',
   ];
 
+  /// Buka halaman Lapor Bug di website. Kalau gagal dibuka, tampilkan pesan.
+  Future<void> _openReport(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final failText = context.t(
+        'Tidak bisa membuka browser. Buka manual: ${AppInfo.reportUrl}',
+        'Could not open the browser. Open it manually: ${AppInfo.reportUrl}');
+    var ok = false;
+    try {
+      ok = await launchUrl(Uri.parse(AppInfo.reportUrl), mode: LaunchMode.externalApplication);
+    } catch (_) {}
+    if (!ok) {
+      messenger.showSnackBar(SnackBar(content: Text(failText), duration: const Duration(seconds: 6)));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final en = context.watch<SettingsStore>().appLang == 'en';
@@ -100,10 +115,21 @@ class AboutScreen extends StatelessWidget {
                   : 'Aplikasi launcher untuk memainkan game RPG Maker di Android, gratis tanpa dipungut biaya.',
               style: const TextStyle(height: 1.35)),
           const SizedBox(height: 10),
-          OutlinedButton.icon(
-            onPressed: () => launchUrl(Uri.parse('mailto:${AppInfo.contactEmail}')),
-            icon: const Icon(Icons.mail_outline, size: 18),
-            label: const Text('Email'),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              OutlinedButton.icon(
+                onPressed: () => launchUrl(Uri.parse('mailto:${AppInfo.contactEmail}')),
+                icon: const Icon(Icons.mail_outline, size: 18),
+                label: const Text('Email'),
+              ),
+              OutlinedButton.icon(
+                onPressed: () => _openReport(context),
+                icon: const Icon(Icons.bug_report_outlined, size: 18),
+                label: Text(context.t('Lapor Bug / Error', 'Report a Bug / Error')),
+              ),
+            ],
           ),
           const SizedBox(height: 22),
           Text(
