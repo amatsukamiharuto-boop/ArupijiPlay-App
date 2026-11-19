@@ -13,6 +13,9 @@ class AppInfo {
       'ArupijiPlay adalah aplikasi laucher game RPG Maker yang bisa dimainkan di android dengan gratis tanpa dipungut biaya.';
   static const contactEmail = 'hitoyainteractive@gmail.com';
 
+  /// Halaman form Lapor Bug di website HITOYA Interactive.
+  static const reportUrl = 'https://hitoya-interactive-devlogs.vercel.app/report';
+
   static const dukungkami =
       'Kalian bisa dukung kami lewat donasi sesuai dengan kemampuan kalian dibawah ini, dan kami tidak memaksa kalian untuk berdonasi, namun jika kalian tertarik untuk berdonasi silahkan berdonasi sesuai dengan kemampuan kalian';
 
